@@ -1,446 +1,76 @@
 # Lith
 
-A repeatable pipeline for producing announcement graphics, technical
-infographics, and short motion clips for tech content (full-stack
-engineering, AI/MLOps, developer tooling). This document describes
-the seven style families built into the project, the prompt anatomy
-every generation should follow, and how to run the pipeline from a
-brief to a final artifact.
+Lith renders a short brief into a style-locked image-generation prompt, and
+overlays literal copy onto the image that comes back. It is a prompt renderer
+and a typography compositor with a recipe format between them.
 
-To learn the pipeline by running it, start with
-[Tutorial: your first announcement image](docs/tutorial-first-image.md).
+**What lith is.** Seven fixed visual style families in
+[`styles.json`](src/lith/data/styles.json), each a prompt template with a few
+substitution slots. A JSON recipe format that makes a brief re-runnable. A
+deterministic ImageMagick pass that paints your literal copy over the image so
+no shipped character was hallucinated. Two console scripts and a seven-function
+Python API. Standard library only — the sole external binary is `magick`.
 
----
+**What lith is not.** It is not an image generator: no API keys, no vendor SDK,
+no model call anywhere in the codebase. `lith-generate --call` emits a JSON
+envelope; you or an agent make the call and hand the result back through
+`--image-url` or `--image-file`. It does not score or rank candidates, does not
+post to any platform, does not do video, and does not turn an existing post
+into a brief. Those stages are people, and lith is explicit about the handoff:
+`lith-run` with no image source prints its plan and exits 0.
 
-## 1. The seven style families
+New here? Work through
+[Tutorial: your first announcement image](docs/tutorial-first-image.md) — a
+brief to a finished PNG in five steps, no API key required.
 
-The project ships seven distinct visual languages for tech/AI announcement
-graphics. Use them in rotation to keep a feed visually interesting without
-becoming chaotic. **Visual variety inside a strict engineer's signature** is
-the brand: confident typography, deliberate composition, and a willingness
-to commit to a full aesthetic instead of generic "tech stock."
+Why the pipeline stops where it does:
+[About the pipeline](docs/explanation-pipeline.md). Why there are seven
+families and what they share: [About the design language](docs/explanation-design-language.md).
 
-### Style family index
-
-| # | Style family | Best for |
-|---|---|---|
-| A | **Sticker / Whisper-joke infographic** — multi-panel comic, neon colors, oversized text, "POV:" hook | Quick reactions, "we shipped a thing" announcements |
-| B | **Sci-fi brutalist UI** — black tie-fighter panel, big monospaced HUD text, 72px+ HEADLINE, 1-pixel cyan accents | Feature flagships, capability reveals |
-| C | **Vintage technical manual / patent diagram** — sepia paper, fine line-drawing, blueprint numbering, callouts | "How it works" educational posts |
-| D | **Manga tape-insert / risograph** — bright flat color circles, hand-drawn arrows, screen-tone shading, "episode title" kerned text | Release announcements, "chapter" framing |
-| E | **Editorial screenshot polish** — actual product UI cropped, glossy with purple→blue gradient frames, sticker burst | Product UI demos |
-| F | **Woodcut / analog engraving** — black on cream, hand-etched lines, skull/cog/sigil iconography | Sponsor/SaaS satellite announcements, "memo from the team" |
-| G | **Role-log / status dashboard** — glowing list, low-saturation darks, blinking cursors, log entries | Operational posts, "we hit X" stats |
-
-You can also produce **multi-family strips** (3–4 panels, each in a different family) for monthly signature posts.
-
-### Brand DNA
-
-The signals that stay constant across the seven families:
-
-- **Black or near-black backgrounds dominate** (deep navy `#0A0E1A`, ink black `#000000`, midnight teal `#06141F`). About 70% of outputs.
-- **Maximum 3 accent colors per image**, always in the same family: hot magenta/pink, cyan, acid yellow, or rust orange. Never rainbow.
-- **Oversized typography** — headlines are 8–15% of frame height. Body text is monospaced or chalkboard serif.
-- **One subject, one idea** — every image is a single declarative statement. No infographics with 8 bullet points.
-- **Posters, not slides** — readable from a thumbnail, designed to be re-pinned.
-- **Hand-drawn energy** — even the most "polished" images (sci-fi brutalist) have asymmetric composition, off-center alignment, or a single decorative flourish.
-- **Iconography vocabulary** — lightning bolts, sparkles, skulls, magnifying glasses, telescopes, gears, cogs, concentric circles, "1Q" / "Chapter" / "Issue 001" framing devices, mock newspaper mastheads.
+Driving lith from a Hermes session: [`skills/lith/SKILL.md`](skills/lith/SKILL.md),
+and [how to install it](#install-the-hermes-skill).
 
 ---
 
-## 2. Pipeline architecture
+## Contents
 
-```
-                    ┌─────────────────────────────────────────────────────┐
-                    │                  1. INGEST                         │
-                    │   topic brief + post copy + style pick + aspect     │
-                    └──────────────────────┬──────────────────────────────┘
-                                           │
-                                           ▼
-                    ┌─────────────────────────────────────────────────────┐
-                    │              2. STYLE BIBLE BUILDER                │
-                    │   pull relevant style guide + pose prompt + tokens │
-                    └──────────────────────┬──────────────────────────────┘
-                                           │
-                                           ▼
-                    ┌─────────────────────────────────────────────────────┐
-                    │              3. DRAFT GENERATION                   │
-                    │   parallel gen: GROK (primary) + OPENAI + MINIMAX  │
-                    │   N=4-8 candidates per request                     │
-                    └──────────────────────┬──────────────────────────────┘
-                                           │
-                                           ▼
-                    ┌─────────────────────────────────────────────────────┐
-                    │              4. SCORING & RANKING                  │
-                    │   CLIP/visual + brand-DNA check + readability     │
-                    └──────────────────────┬──────────────────────────────┘
-                                           │
-                                           ▼
-                    ┌─────────────────────────────────────────────────────┐
-                    │              5. POST-PROCESSING                   │
-                    │   typography overlay, crop, color-grade, export   │
-                    └──────────────────────┬──────────────────────────────┘
-                                           │
-                                           ▼
-                    ┌─────────────────────────────────────────────────────┐
-                    │              6. REVIEW & UPLOAD                    │
-                    │   human approve → xurl media upload → post        │
-                    └─────────────────────────────────────────────────────┘
-```
-
-### Model routing (the only three you have)
-
-| Model family | When to use | Why |
-|---|---|---|
-| **Grok (xAI Imagine)** — `grok-imagine-image-quality` for stills, `grok-imagine-video-1.5` for video | **Primary workhorse.** 70% of generation. | Best at the "weird style that nobody else can do" — manga tape-insert, art deco, woodcut, neon brutalist. Image-editing is supported (image-to-image) so you can lock a style reference and re-render. Video is image-to-video only and 1–15 s — perfect for the 6–8 s clips you'll use. |
-| **OpenAI (gpt-image-1 / DALL-E)** | **Polish + integration.** 20% of generation. | Better at coherent typography inside the image (the "Reuters headline" bug than Grok has). Use OpenAI for **editorial screenshot polish** (family E) and any post where readable text inside the image is non-negotiable. |
-| **MiniMax** | **Cheap variation & backgrounds.** 10% of generation. | Use for background-pattern generators, sticker illustrations, and "throwaway" variation rounds. Also good at vector-flat sticker style. |
-
-**Rule of thumb:** Grok first, OpenAI second, MiniMax third. Always run at least 4 candidates per generation call — the hit rate is dramatically lower than builders expect.
+- [Install](#install)
+- [Install the Hermes skill](#install-the-hermes-skill)
+- [CLI reference](#cli-reference) — [`lith-generate`](#lith-generate) · [`lith-run`](#lith-run) · [`overlay_text.py`](#overlay_textpy)
+- [Python API](#python-api) — full detail in [the API reference](docs/reference-python-api.md)
+- [Recipe format](#recipe-format)
+- [Style families](#style-families)
+- [`styles.json` schema](#stylesjson-schema)
+- [Output paths](#output-paths)
+- [Tests](#tests)
+- [Status](#status)
 
 ---
 
-## 3. The seven style recipes
+## Install
 
-Each style family maps to a concrete prompt template. Drop these into `templates/` and render the parameterized version per post.
+Requirements:
 
-### A. Sticker / Whisper-joke infographic
+| | |
+|---|---|
+| Python | 3.10 or newer (the library uses PEP 604 union syntax) |
+| [uv](https://docs.astral.sh/uv/) | `brew install uv` on macOS |
+| ImageMagick 7 | `magick` on `$PATH`; needed only for the overlay pass |
 
-```
-[FRAME]
-Sticker-sheet composition, 4-6 hand-cut sticker-style shapes on a black
-background (#050505). Each sticker is a brightly colored flat 2D shape
-(circle, rounded rectangle, badge) with a single phrase or icon.
-Decorative elements: hand-drawn arrows, sparkles, comic-book "POW"/"WOAH"
-bursts, sweat drops, eye-searing neon outlines.
-
-[TYPOGRAPHY]
-Giant sans-serif all-caps HEADLINE at 12% of frame height (Helvetica Neue
-Black or similar). Sub-text in handwritten marker font at 3% of frame.
-
-[PALETTE]
-Black background, one accent from [hot magenta #FF2E88 | cyan #00E5FF |
-acid yellow #F2FF00 | rust #FF6B35]. White reverses for text.
-
-[MOOD]
-Tweetable, memetic, reactions-driven. Looks like a sticker pack someone
-would sticker-bomb a laptop with.
-```
-
-**Best for:** "we shipped a thing," low-stakes announcements, "POV: you tried X" jokes.
-
-### B. Sci-fi brutalist UI
-
-```
-[FRAME]
-Single black panel, 1920x1080, 16:9. Center-aligned massive HUD-style
-text. Background: pure black #000000 with a 1px cyan grid line at 8%
-opacity. Optional: a single render of a Tie-fighter, Saturn V, or
-geodesic dome as a subtle silhouette at 20% opacity bottom-right.
-
-[TYPOGRAPHY]
-Top 1/3: 180px monospaced all-caps headline (JetBrains Mono Bold or
-Space Mono Bold) in white. Bottom 2/3: monospaced technical subtext
-in cyan #00E5FF at 24px, justified-left, with red #FF3030 inline
-emphasis markers like [SYSTEM] or [NEW].
-
-[PALETTE]
-#000000 base, #00E5FF cyan accents, #FFFFFF white text, #FF3030 red
-for callouts. NO gradients. NO drop shadows.
-
-[MOOD]
-Hacker terminal, mission control, "your keyboard is also a weapon."
-```
-
-**Best for:** Feature flagships, capability reveals, "we now do X" claims. Most Instagram-friendly of the seven.
-
-### C. Vintage technical manual / patent diagram
-
-```
-[FRAME]
-Sepia paper background (#E8DCC4), fine ink-line drawing in #1A1A1A.
-Centered technical illustration of [SUBJECT — a tool, a rocket, a
-gauge, a hand holding a wrench]. Border: thin double-rule with
-ornate corner ornaments (fleurons, sunbursts). Blue or red ink
-highlights for arrows, measurements, callouts.
-
-[TYPOGRAPHY]
-Top: small all-caps "TECHNICAL MANUAL — VOLUME [N]" in serif
-(Times, Caslon). Bottom: 2-3 numbered callouts in the same serif
-pointing into the diagram with thin lines. Patent-style "FIG. 1"
-labels.
-
-[PALETTE]
-#E8DCC4 paper, #1A1A1A ink, #C2410C red-orange, #1E40AF blue
-accents. Aged feel — slight grain, vignette, light tea-stain
-discoloration near corners.
-
-[MOOD]
-NASA 1962, an Edwardian engineer's notebook, a steampunk patent
-attorney's filing cabinet.
-```
-
-**Best for:** "How it works" posts, educational threads, anything that benefits from "we engineered this."
-
-### D. Manga tape-insert / risograph
-
-```
-[FRAME]
-Single bold flat-color background (one of: #FFD700 yellow, #FF2E88
-pink, #00E5FF cyan). Centered hand-drawn illustration in thick
-manga-line style (5-8px outlines, flat fills, no gradients).
-Screen-tone dots for shading. Single dramatic character/figure
-or icon.
-
-[TYPOGRAPHY]
-Top: massive display text in chunky display font (Cooper Black or
-Hipstería), 200px+, slightly rotated (-2° to +2°). Bottom: subtitle
-in same font, half-size. Speech-bubble or thought-bubble for
-emphasis.
-
-[PALETTE]
-One base color, one black, one or two accent colors. Risograph
-overprint effect — slight registration offset where colors overlap
-(2-3px shift).
-
-[MOOD]
-Bangers, manga chapter titles, a T-shirt you would buy without
-hesitation.
-```
-
-**Best for:** Release announcements, "chapter" framing, viral moments. Best for IG/TikTok stills.
-
-### E. Editorial screenshot polish
-
-```
-[FRAME]
-Centered product screenshot (Hermes UI, terminal, Slack, etc.) on a
-deep gradient background (#1A0B2E → #2D1B69 → #0F172A). Optional
-radial vignette glow behind the screenshot in electric purple
-#7C3AED at 30% opacity.
-
-[TYPOGRAPHY]
-Top: large headline in Inter Bold or SF Pro Display, white. Each
-screenshot bordered with a 2px white outline at 10% opacity and a
-48px corner-radius. Subtle reflection drop-shadow below.
-
-[PALETTE]
-#1A0B2E → #0F172A gradient, #7C3AED purple glow, white text. The
-screenshot itself provides the accent colors.
-
-[MOOD]
-App Store feature graphic, Apple keynote slide, a product launch
-on the front page of The Verge.
-```
-
-**Best for:** UI demos, product launches, "see what we built" posts. **Pair with a real video clip** (image-to-video the same composition for 4–6 s of motion).
-
-### F. Woodcut / analog engraving
-
-```
-[FRAME]
-Cream paper background (#F4ECD8) with subtle deckle edge. Single
-black-on-cream illustration in the style of a 19th-century
-engraving: cross-hatched shading, fine parallel lines, bold
-silhouette. Subject: a skull, a hand holding a quill, a gear, a
-newspaper masthead, an old-timey printing press.
-
-[TYPOGRAPHY]
-Top: "BROADSIDE" or "BULLETIN" or "MEMO" in heavy serif
-(Bodoni, Caslon). Body text in old-style serif (Garamond) justified
-to a single column. Drop-cap on the first letter.
-
-[PALETTE]
-#F4ECD8 cream, #1A1A1A black, occasional #8B2A1F blood-red ink for
-emphasis. No other colors.
-
-[MOOD]
-Pirate broadside, 1880s newspaper, a manifesto from a candlelit
-workshop.
-```
-
-**Best for:** Sponsor/SaaS partner announcements, "memo from the team" posts, anything where you want gravitas.
-
-### G. Role-log / status dashboard
-
-```
-[FRAME]
-Dark background (#0A0E1A or #06141F). Centered "terminal" panel
-with rounded corners and subtle glow. Inside: monospaced log lines
-with timestamps, agent IDs, status badges (✓/✗), low-saturation
-status colors. One line in the middle is highlighted (rendered as
-a "successful" event) with a soft cyan glow.
-
-[TYPOGRAPHY]
-JetBrains Mono Regular at 18-22px. Logger-style timestamps in
-#6B7280, agent IDs in #9CA3AF, log messages in #E5E7EB, success
-highlights in #10B981.
-
-[PALETTE]
-Dark blue-gray background, near-monochrome text. One accent color
-(usually cyan or green) reserved for "this is the moment."
-
-[MOOD]
-Datadog, a Vercel deploy log, a Sentry incident summary.
-```
-
-**Best for:** Operational posts, "we hit X" stats, "in production" announcements.
-
----
-
-## 4. The non-negotiable prompt anatomy
-
-Every generation — regardless of family — must include these six slots. Fill them in this order; don't skip the framework slots.
-
-```
-[FRAME]      aspect, composition, camera/vantage, foreground/background
-[PALETTE]    2-4 colors with hex codes; one accent per image
-[TYPO]       font + size + weight + color, headline vs body distinction
-[ICON]       one or two named motifs/skills/glyphs (lightning, skull, gear)
-[COPY]       any literal text that must appear in the image (use sparingly)
-[MOOD]       one sentence: who is this for, what is the feeling
-```
-
-**Critical rules:**
-
-1. **Headline text inside the image is ALWAYS in the same font as the post's typographic intent** — never let the model invent its own font. Specify "display sans-serif, Helvetica Neue Black, 180px" or "Bodoni, 200px, all caps."
-2. **Most powerful image-text in a tech-AI announcement post is 1–3 words.** Examples: "The Crew," "New in Hermes," "1Q," "Just /run." Anything longer is a caption, not a headline.
-3. **Specifying hex codes beats describing colors.** "Hot magenta" produces different results across runs; "#FF2E88" is stable.
-4. **The decorative element is the brand.** Commit to one signature flourish per image: a lightning bolt, a spark, a magnifying glass, a sunburst, a single ornamental rule. Don't sprinkle five different decorations.
-5. **Asymmetric composition wins.** Centered-everything reads as a stock template; off-center reads as a deliberate poster. Offset the headline left, place the icon right, draw a connecting flourish.
-6. **One image, one idea.** If you have two ideas, make two images. Don't make a 4-panel when two truths would do — except in family D (manga tape-insert) where panels are the whole point.
-
----
-
-## 5. The full pipeline, end-to-end
-
-> **Design target only:** This section describes the intended full pipeline; see §7 for what runs today and §9 for implementation status.
-
-### Step 1 — Brief
-For each post, run this intake:
-
-```markdown
-TOPIC:        [one sentence — what is the announcement]
-STYLE:        [A | B | C | D | E | F | G — pick one, or list 2-3 for a strip]
-ASPECT:       [16:9 | 4:5 | 1:1 | 9:16]
-HEADLINE:     [≤ 3 words shown IN the image]
-COPY:         [the rest of the post that goes in the caption, not the image]
-ICON:         [one motif: lightning, skull, gear, telescope, magnifying glass, etc.]
-PALETTE:      [pick one of the seven family palettes]
-MOOD:         [one sentence]
-```
-
-### Step 2 — Generate
-
-Run the prompt against Grok first (4 candidates, 16:9 landscape unless post is mobile-first). If Grok fails typography or composition, fall back to OpenAI. Use MiniMax for sticker/background variants only.
-
-```python
-# pseudo-code for the orchestrator
-def generate(brief):
-    candidates = []
-    for i in range(4):
-        prompt = render_template(brief.style, brief)
-        img = grok_image_gen(prompt, n=1, seed=brief.seed + i)
-        candidates.append(img)
-    # optional: 1-2 OpenAI variants if Grok hit rate is low
-    if needs_polish(brief):
-        for i in range(2):
-            candidates.append(openai_image_gen(prompt, n=1))
-    return candidates
-```
-
-### Step 3 — Score
-
-Every candidate is scored on three axes (1–5):
-
-- **Brand-DNA**: black background? oversize type? one accent color? off-center composition?
-- **Readability**: headline legible at thumbnail size? no Lorem-ipsum gibberish in the image?
-- **Concept fit**: does the icon match the topic? does the mood match the post?
-
-Pick the top 1. If the top is < 4 on any axis, run another generation pass with stricter constraints.
-
-### Step 4 — Post-process
-
-Even after generation, almost every announcement image benefits from a finish pass:
-
-1. **Typography overlay** — render the headline in your own font (Inter Black, JetBrains Mono Bold, or Cooper Black) on top of the generated image. This gives you pixel-perfect text without model hallucination. Use Pillow or ImageMagick.
-2. **Color grading** — push blacks slightly toward #0A0E1A (not pure black), add a 2px inner border in cyan or magenta, apply a 4% noise/grain layer.
-3. **Crop to aspect** — final export at 1920x1080 (16:9), 1080x1350 (4:5 IG), or 1080x1080 (1:1).
-4. **Watermark** — small "Hermes" or "@yourhandle" mark in the bottom-right in 1% opacity white. Optional.
-
-### Step 5 — Video (optional)
-
-For posts that need motion (recommended for ~10% of posts):
-
-1. Take the final image as the keyframe.
-2. Pass to `grok-imagine-video-1.5` with a motion prompt: "subtle parallax, slow zoom in, gentle particle motion, 5 seconds, 1080x1080."
-3. Optionally: a 2-second-loop "GIF-style" effect — repeat the same 4-second clip with a 1-frame offset for a lo-fi texture.
-
-### Step 6 — Approve and post
-
-Use the `xurl` skill for the actual upload. Sequence:
-
-```bash
-# Edit media
-xurl media upload outputs/post_001_final.png --media-type image/png --category tweet_image
-
-# Stage caption in a file (never in a long shell arg)
-echo "Your caption here" > /tmp/caption.txt
-
-# Post via xurl (does NOT auto-post — please confirm before publishing)
-xurl post "$(cat /tmp/caption.txt)" --media-id MEDIA_ID
-```
-
----
-
-## 6. Style-family rotation schedule
-
-To keep the feed visually interesting without being chaotic, use this rotation across a week:
-
-| Day | Family | Why |
-|---|---|---|
-| Mon | A — Sticker | Loud, memetic, week-start energy |
-| Tue | B — Sci-fi brutalist | Productive, engineer-flagship |
-| Wed | C — Vintage manual | Educational, "how it works" |
-| Thu | D — Manga tape-insert | Vibrant, viral-leaning |
-| Fri | E — Editorial screenshot | Product UI demo |
-| Sat | F — Woodcut | Gravitas, sponsor, "memo" |
-| Sun | G — Role-log | Quiet operational post, build-in-public |
-
-Once a week, do a **family mash-up** (e.g., a 4-panel meme deck combining A + C + D + F in one image). This signals "we are deliberately creative" and is the highest-engagement pattern in the seven families.
-
----
-
-## 7. Installation
-
-The project uses Python 3.10+ standard library only — ImageMagick is the only
-external binary dependency for the typography overlay, and it's already on
-macOS via Homebrew (`brew install imagemagick`). [uv](https://docs.astral.sh/uv/)
-manages the project's virtual environment.
-
-### Requirements
-
-  • Python **3.10 or newer** (the library uses PEP 604 union syntax)
-  • [uv](https://docs.astral.sh/uv/) — `brew install uv` on macOS
-  • ImageMagick 7 (`magick` on `$PATH`) — only needed if you'll overlay literal copy
-
-### Install the command-line tools
-
-End users can install lith directly from GitHub:
+As a tool:
 
 ```bash
 uv tool install git+https://github.com/funsaized/lith
 lith-generate --help
 ```
 
-This installs `lith-generate` and `lith-run` on your tool path. To use lith as
-a Python library in another project, add it as a normal dependency instead:
+As a library in another project:
 
 ```bash
 uv add git+https://github.com/funsaized/lith
 ```
 
-### Contributor install
+As a contributor:
 
 ```bash
 git clone https://github.com/funsaized/lith.git
@@ -448,14 +78,10 @@ cd lith
 uv sync --extra test
 ```
 
-`uv sync --extra test` creates `.venv/`, resolves dependencies from
-`pyproject.toml`, and installs the project in editable mode. The editable
-install adds the same two console-script entry points to the venv:
+`uv sync --extra test` creates `.venv/`, resolves `pyproject.toml`, and installs
+the project editable, which places `lith-generate` and `lith-run` in the venv.
 
-  • `lith-generate` — render a brief into a prompt and plan
-  • `lith-run` — run the end-to-end driver
-
-### Verify the install
+Verify:
 
 ```bash
 uv run lith-generate \
@@ -463,32 +89,220 @@ uv run lith-generate \
 uv run python -c "from lith import render_prompt"
 ```
 
-You should see the rendered prompt printed and exit 0.
-
-### Run the test suite
-
-```bash
-uv run pytest
-```
-
-All tests should pass. The smoke test (`test_smoke_e2e.py`) requires the
-reference artifacts in `outputs/`; if those are missing it will skip
-with a clear message.
+Both print and exit 0.
 
 ---
 
-## 8. Usage
+## Install the Hermes skill
 
-> New here? Work through
-> [Tutorial: your first announcement image](docs/tutorial-first-image.md) —
-> a brief to a finished PNG in five steps, no API key required.
+[`skills/lith/SKILL.md`](skills/lith/SKILL.md) lets a Hermes session drive the
+two CLIs on your behalf. It is a workflow wrapper only — every deterministic
+behavior lives in the `lith` package, which the skill assumes is already
+installed. Install the package first; the skill is useless without it.
 
-The Python side renders the prompt and overlays typography. The model
-call and candidate selection are made by a Hermes session or by hand.
+Hermes discovers skills at `~/.hermes/skills/<name>/SKILL.md`. Put lith's there.
 
-The package exposes a Python API plus two command-line entry points.
+**Symlink** — the right choice from a checkout, since edits to the repo copy
+take effect on the next Hermes restart. Run it from the repository root:
 
-### Python API
+```bash
+mkdir -p ~/.hermes/skills
+rm -rf ~/.hermes/skills/lith
+ln -s "$PWD/skills/lith" ~/.hermes/skills/lith
+```
+
+The `rm -rf` is load-bearing. If a real directory is already at that path — a
+copy install, or a version from before the skill shipped in this repository —
+`ln -s` puts the link *inside* it at `~/.hermes/skills/lith/lith` and exits 0.
+Nothing errors, and Hermes goes on loading the stale `SKILL.md`. Adding `-fn`
+does not help; macOS cannot unlink a real directory that way.
+
+**Copy** — for a checkout you intend to delete:
+
+```bash
+mkdir -p ~/.hermes/skills/lith
+cp skills/lith/SKILL.md ~/.hermes/skills/lith/SKILL.md
+```
+
+If you installed lith with `uv tool install` and have no checkout, clone the
+repository for the skill file alone:
+
+```bash
+git clone --depth 1 https://github.com/funsaized/lith.git /tmp/lith
+mkdir -p ~/.hermes/skills/lith
+cp /tmp/lith/skills/lith/SKILL.md ~/.hermes/skills/lith/SKILL.md
+```
+
+Restart Hermes. Its session-start loader reads the skills directory once at
+startup, so a skill added or edited mid-session is not picked up.
+
+Verify:
+
+```bash
+test -f ~/.hermes/skills/lith/SKILL.md && echo "skill resolves"
+test ! -e ~/.hermes/skills/lith/lith  && echo "not nested"
+lith-generate --help >/dev/null && lith-run --help >/dev/null && echo "cli ok"
+```
+
+All three lines must print. The second is what catches the nesting trap above —
+the first passes either way.
+
+Then ask the session for something the skill covers — "generate a family B
+announcement image for X" — and confirm it reaches for `lith-generate --call
+--emit-json` rather than improvising a prompt.
+
+To update the skill after pulling: symlink installs need nothing but a Hermes
+restart; copy installs need the `cp` re-run. To uninstall,
+`rm -rf ~/.hermes/skills/lith`.
+
+### What the skill instructs
+
+Worth knowing before you hand a session the keys — the file itself is 90 lines
+and worth reading:
+
+- Render the envelope with `lith-generate --recipe ... --call --emit-json`,
+  call an image model with its fields, then finish through `lith-run`.
+- Use absolute paths for recipes and images.
+- Ask the user to pick when candidate selection is subjective.
+- **Never publish, post, or upload without separate authorization.**
+
+The skill declares `platforms: [linux, macos]`. The overlay defaults point at
+`/System/Library/Fonts/Menlo.ttc`, so a Linux session must pass `--font`.
+
+---
+
+## CLI reference
+
+### `lith-generate`
+
+Renders a brief into a prompt. Prints a human-readable summary by default;
+with `--call`, prints a generation envelope instead.
+
+```
+lith-generate --recipe PATH [options]
+lith-generate --topic TEXT --style {A..G} --headline TEXT [options]
+```
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--recipe` | path | — | Recipe file. Supplies the brief, `model`, and `n`. |
+| `--topic` | str | — | One-sentence brief. Required without `--recipe`. |
+| `--style` | `A`–`G` | — | Style family. Required without `--recipe`. |
+| `--headline` | str | — | In-image headline. Required without `--recipe`. |
+| `--aspect` | `16:9` `4:5` `1:1` `9:16` | family default | Aspect ratio. |
+| `--icon` | str | `gear` | Motif substituted into `{icon}`. |
+| `--n` | int | `4` | Candidate count recorded in the envelope. |
+| `--seed` | int | `None` | Seed recorded in the envelope. |
+| `--model` | `grok-imagine-image-quality` `grok-imagine-image` `gpt-image-1` `minimax-image` | `grok-imagine-image-quality` | Model recorded in the envelope. |
+| `--out` | path | derived | Output path recorded in the envelope. |
+| `--call` | flag | off | Emit the envelope instead of the summary. |
+| `--emit-json` | flag | off | With `--call`, emit JSON rather than `key=value` lines. |
+
+With `--recipe`, the recipe's `model` and `n` win and `--model` / `--n` are
+ignored; `--seed`, `--out`, `--call`, and `--emit-json` still apply.
+
+Envelope fields, in order: `prompt`, `negative_prompt`, `aspect_ratio`,
+`model`, `n`, `seed`, `output_path`, `style`.
+
+```bash
+uv run lith-generate --recipe recipes/live_test_recipe.json --call --emit-json
+```
+
+Exit codes: `0` on success, `2` on an argparse error (including a missing
+`--topic`/`--style`/`--headline` when `--recipe` is absent).
+
+### `lith-run`
+
+Ingests a generated image and overlays literal copy. With no image source, it
+prints its plan and exits.
+
+```
+lith-run --recipe PATH [--image-url URL | --image-file PATH] [options]
+```
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--recipe` | path | **required** | Recipe file. |
+| `--image-url` | url | — | HTTP(S) URL of the generated image. Mutually exclusive with `--image-file`. |
+| `--image-file` | path | — | Local generated image. Mutually exclusive with `--image-url`. |
+| `--line` | `LABEL=copy` | `[]` | Overlay line; repeatable. Label and copy must both be non-empty. |
+| `--font` | path | `/System/Library/Fonts/Menlo.ttc` | Font passed to the overlay. |
+| `--output-dir` | path | `./outputs` | Directory for the raw and final files. |
+
+Three modes:
+
+| Condition | Behavior |
+|---|---|
+| No `--image-url` and no `--image-file` | Prints recipe, family, style, aspect, model, prompt, and output path; exits 0. Nothing is written. |
+| Image source, no `--line` | Writes the raw image only, warns `[warn] no --line supplied`; exits 0. |
+| Image source and `--line` | Writes the raw image, overlays copy, writes the final PNG; exits 0. |
+
+`--image-url` fetches under four guards: HTTP(S) schemes only, re-checked after
+redirects; 30-second timeout; 25 MB ceiling enforced while streaming; and a
+magic-byte check for JPEG, PNG, or WebP before any write. `--image-file` skips
+the network guards, keeps the magic-byte check, and no-ops the copy if source
+and destination resolve to the same path.
+
+```bash
+uv run lith-run \
+  --recipe recipes/live_test_recipe.json \
+  --image-file outputs/B_brutalist_32_langs_raw.jpg \
+  --line SYSTEM='32 language runtimes online' \
+  --line NEW='Full-stack · AI · MLOps' \
+  --line READY='One agent. Every stack.'
+```
+
+Exit codes: `0` on success, `2` on an argparse error. A failed download, a
+non-image body, or a nonzero `magick` exit raises and terminates with a
+traceback.
+
+### `overlay_text.py`
+
+The overlay implementation, bundled inside the package at
+`src/lith/overlay_text.py`. `lith-run` and `overlay_typography` invoke it as a
+subprocess and forward only `--input`, `--output`, `--line`, and `--font`. Run
+it directly to reach the layout constants.
+
+| Flag | Type | Default |
+|---|---|---|
+| `--input` | path | **required** |
+| `--output` | path | **required** |
+| `--line` | `LABEL=copy` | **required**, repeatable |
+| `--font` | path | `/System/Library/Fonts/Menlo.ttc` |
+| `--point-size` | int | `25` |
+| `--x` | int | `150` — label column |
+| `--body-x` | int | `295` — copy column |
+| `--y` | int | `405` — first baseline |
+| `--line-height` | int | `40` |
+| `--label-color` | hex | `#FF3030` |
+| `--body-color` | hex | `#00E5FF` |
+| `--mask` | `x1,y1 x2,y2` | `120,365 1165,515` |
+
+Behavior: fills `--mask` with black, then draws each line as `[LABEL]` at
+(`--x`, `--y` + *i* × `--line-height`) in `--label-color` and the copy at
+(`--body-x`, same *y*) in `--body-color`.
+
+The position defaults are tuned for a 1280×720 family-B panel and are wrong for
+other aspects. Exit codes: `0` on success, `2` if `magick`, the input, or the
+font is missing.
+
+---
+
+## Python API
+
+`from lith import ...` exposes seven names. Full signatures, return shapes,
+exception tables, and internals for every module —
+**[Python API and implementation reference](docs/reference-python-api.md)**.
+
+| Name | Signature | Purpose |
+|---|---|---|
+| `render_prompt` | `(style, brief=None) -> dict[str, str]` | Substitute a brief into a family template. Returns `prompt`, `negative_prompt`, `aspect_ratio`, `style`. |
+| `load_recipe` | `(path) -> Recipe` | Read and validate a recipe file. |
+| `overlay_typography` | `(src, dst, lines, font=None) -> Path` | Paint literal copy onto an image via ImageMagick. |
+| `expand_brief` | `(topic, llm_cmd, ...) -> dict` | Expand a topic into a brief using an LLM command you supply. |
+| `parse_brief_response` | `(text) -> dict` | First decodable JSON object in an LLM reply. |
+| `output_path` | `(out_dir, family_key, headline, ext) -> Path` | Derive an artifact path. |
+| `slug` | `(text) -> str` | Filename-safe slug; `"untitled"` when empty. |
 
 ```python
 from lith import load_recipe, render_prompt
@@ -497,95 +311,180 @@ recipe = load_recipe("recipes/live_test_recipe.json")
 rendered = render_prompt(recipe)
 ```
 
-### 1. Render a prompt from the CLI
-
-From flags:
-
-```bash
-uv run lith-generate \
-  --topic "Hermes Agent now supports 32 new languages" \
-  --style B --aspect 16:9 --headline "32 LANGS" --icon "globe"
-```
-
-From a recipe:
-
-```bash
-uv run lith-generate \
-  --recipe recipes/live_test_recipe.json \
-  --call --emit-json
-```
-
-`--call --emit-json` emits a JSON envelope you can pipe to an image-generation
-tool. The envelope contains `prompt`, `negative_prompt`, `aspect_ratio`,
-`model`, `n`, `seed`, `output_path`, and `style`.
-
-### 2. (Hermes session) generate the image
-
-Take the rendered prompt and call your image-generation tool of choice
-(`grok-imagine-image-quality` is the recommended default). Save the
-returned image URL.
-
-### 3. Overlay literal copy and write the final PNG
-
-```bash
-uv run lith-run \
-  --recipe recipes/live_test_recipe.json \
-  --image-url <url-from-step-2> \
-  --line SYSTEM='32 language runtimes online' \
-  --line NEW='Full-stack · AI · MLOps' \
-  --line READY='One agent. Every stack.'
-```
-
-Output: `outputs/B_brutalist_32_langs.png`.
-
-For local debug or smoke testing, replace `--image-url` with
-`--image-file <path>` to feed a local image through the same overlay path.
-
-Dry mode (no `--image-url` and no `--image-file`) prints the rendered plan
-and exits 0 — safe to run before the model call has been made.
-
-### Hermes skill
-
-Hermes discovers lith through a thin instruction wrapper installed separately
-from the Python package:
-
-```bash
-test -f ~/.hermes/skills/lith/SKILL.md
-```
-
-The skill contains workflow instructions only; all deterministic behavior lives
-in the installed `lith` package. Restart Hermes after installing or changing the
-skill so its session-start loader can discover it.
+`Recipe`, `FAMILY_KEYS`, `REQUIRED_BRIEF_KEYS`, `load_styles`, `get_family`, and
+`DEFAULT_PROMPT` are not in `__all__` but are importable from their modules and
+used by both console scripts.
 
 ---
 
-## 9. Pitfalls
+## Recipe format
 
-1. **Don't let the model pick the style.** The seven families exist because committed creators pick the aesthetic, not the model. If you ask Grok for "a tech announcement graphic," you get generic SaaS stock. Pre-commit to a family.
-2. **Type-in-image is the failure mode.** Treat any text rendered inside the image by the model as suspect. Don't trust the model to render "Hermes Agent" correctly — overlay it in your own font.
-3. **Hands, faces, and specific tool logos are unreliable.** Push generation toward illustration, never toward photoreal people.
-4. **Avoid the "AI gradient" trap.** If the result has a purple-to-blue diagonal gradient, a 3D-rendered icon, and gloss highlight — you've drifted to generic AI imagery. Reject and re-prompt.
-5. **Variety is the brand.** If the last 5 posts used the same template, the audience will tune out. Rotate families weekly; use the 4-panel mash-up once a month.
-6. **The captions matter as much as the image.** Captions should be short, technical, dry, and forward-looking. No "excited to announce" boilerplate. The image should feel like the visual essay of an engineer, not a launch announcement.
+A recipe is a JSON object. See
+[`recipes/live_test_recipe.json`](recipes/live_test_recipe.json).
 
----
+| Key | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `style` | `"A"`–`"G"` | yes | — | Style family letter. |
+| `brief` | object | yes | — | Substitution values; see below. |
+| `name` | string | no | file stem | Recipe identifier. |
+| `description` | string | no | `null` | Free text; not used at runtime. |
+| `model` | string | no | `grok-imagine-image-quality` | Recorded in the envelope. |
+| `n` | int | no | `4` | Candidate count recorded in the envelope. |
+| `expected_output` | string | no | `null` | Reference artifact path; read by the smoke test, not the CLIs. |
 
-## 10. Roadmap
+`brief` keys:
 
-| Stage | Status | Owner |
+| Key | Required | Used for |
 |---|---|---|
-| Prompt rendering from styles.json | done | library |
-| ImageMagick typography overlay | done | library (shells to `overlay_text.py`) |
-| Recipe loader + driver (`run.py`) | done | library |
-| Hermes SKILL.md in `~/.hermes/skills/lith/` | done | Hermes environment |
-| Real `image_generate` call from driver | not done | operator/Hermes |
-| Topic-expansion helper (`expand_brief`) | done (library only) | library |
-| Post → brief ingestion (URL or scraped post → brief) | **adjacent project, not v1** | future |
-| Video augmentation | **out of scope for v1** — see risks below | — |
-| CLIP-based candidate scoring | not done | future |
-| Aspect-aware overlay masks | not done | future |
-| Calendar rotation tool | not done | future |
+| `topic` | yes | Validation and human context; not substituted into any template. |
+| `headline` | yes | `{headline}` slot **and** the output filename. |
+| `icon` | yes | `{icon}` slot. |
+| `aspect` | yes | `aspect_ratio` in the envelope. |
+| `volume` | no | `{volume}` slot; family C only. Defaults to `"1"`. |
 
-**Why video is out of v1:** image-to-video models warp small monospaced glyphs (the [SYSTEM]/[NEW]/[READY] overlay at 25pt Menlo) under any motion prompt. Adding video safely requires choosing between (a) overlaying after the video pass, (b) replacing the Menlo+magick path with ffmpeg drawtext, or (c) compositing the still-overlay PNG over each video frame. Each is a separate design decision; deferred.
+```json
+{
+  "name": "live_test_recipe",
+  "style": "B",
+  "brief": {
+    "topic": "Hermes Agent now supports 32 new languages",
+    "headline": "32 LANGS",
+    "icon": "globe",
+    "aspect": "16:9",
+    "volume": "1"
+  },
+  "model": "grok-imagine-image-quality",
+  "n": 4
+}
+```
 
-**Why post → brief is out of v1:** this pipeline writes outward (model APIs, filesystem); post → brief ingestion reads inward (untrusted URLs, scraped content). Different trust boundary, different error budget, different invariant (the source post vs. the literal copy). It's a real plan task — HTML/OG scraping, relevance check, "riff on this" prompt — that deserves its own project, not a roadmap row.
+---
+
+## Style families
+
+Seven families, defined in [`src/lith/data/styles.json`](src/lith/data/styles.json).
+That file is authoritative for prompt text; this table is the index.
+
+| Letter | Key | Name | Default aspect | Template slots | Best for |
+|---|---|---|---|---|---|
+| A | `A_sticker` | Sticker / whisper-joke infographic | 16:9 | `{headline}` `{accent}` | Quick reactions, ship announcements, POV jokes |
+| B | `B_brutalist` | Sci-fi brutalist UI | 16:9 | `{headline}` `{icon}` | Feature flagships, capability reveals |
+| C | `C_patent` | Vintage technical manual / patent diagram | 4:5 | `{headline}` `{icon}` `{volume}` | How-it-works posts, educational threads |
+| D | `D_manga` | Manga tape-insert / risograph | 1:1 | `{headline}` `{base_color}` | Release announcements, chapter framing |
+| E | `E_screenshot` | Editorial screenshot polish | 16:9 | `{headline}` | UI demos, product launches |
+| F | `F_woodcut` | Woodcut / analog engraving | 4:5 | `{headline}` `{icon}` | Sponsor announcements, team memos |
+| G | `G_log` | Role-log / status dashboard | 16:9 | `{headline}` | Operational posts, build-in-public stats |
+
+Slot resolution, per `render_prompt`:
+
+| Slot | Source | Fallback |
+|---|---|---|
+| `{headline}` | `brief["headline"]` | `"NEW"` |
+| `{icon}` | `brief["icon"]` | `"gear"` |
+| `{volume}` | `brief["volume"]` | `"1"` |
+| `{base_color}` | `palette["background"]` | `"#000000"` |
+| `{accent}` | `palette["accent"]` | `"#00E5FF"` |
+
+A palette field holding a list is joined with `" | "` — for example
+`A_sticker`'s four accents render as
+`#FF2E88 | #00E5FF | #F2FF00 | #FF6B35`. An empty list falls back to the
+default.
+
+Why the families exist, what they have in common, and how to rotate them:
+[About the design language](docs/explanation-design-language.md).
+
+---
+
+## `styles.json` schema
+
+```
+version      string   schema version ("1.0.0")
+description  string   free text
+families     object   family key -> family object
+rules        object   authoring constraints; advisory, not enforced at runtime
+```
+
+Family object:
+
+| Field | Type | Read by | Description |
+|---|---|---|---|
+| `name` | string | `render_prompt` | Human-readable name returned as `style`. |
+| `prompt_template` | string | `render_prompt` | `str.format` template; slots per the table above. |
+| `negative_prompt` | string | `render_prompt` | Returned verbatim. |
+| `default_aspect` | string | `render_prompt` | Used when the brief omits `aspect`. |
+| `palette` | object | `render_prompt` | Only `background` and `accent` are substituted; other keys document the family. |
+| `best_for` | string[] | — | Documentation. |
+| `iconography` | string[] | — | Documentation; suggested `icon` values. |
+
+`rules` — `max_accent_colors`, `max_words_in_image`,
+`always_oversize_headline`, `always_one_decorative_motif`,
+`prefer_asymmetric_composition`, `always_one_idea_per_image` — are an authoring
+checklist. No code reads them.
+
+Pass an alternate file with `load_styles(path)`; the CLIs always use the
+bundled copy.
+
+---
+
+## Output paths
+
+Both filenames derive from `output_path(dir, family_key, headline, ext)`:
+
+| File | Pattern | Example |
+|---|---|---|
+| Raw (ingested image) | `{family_key}_{slug(headline)}_raw.jpg` | `outputs/B_brutalist_32_langs_raw.jpg` |
+| Final (after overlay) | `{family_key}_{slug(headline)}.png` | `outputs/B_brutalist_32_langs.png` |
+
+The directory is `--output-dir` for `lith-run` (default `./outputs`) and
+`./outputs` for `lith-generate`. The raw file always carries a `.jpg`
+extension regardless of the source format, and both files are overwritten
+without prompting when a recipe is re-run.
+
+`outputs/B_brutalist_32_langs_verified.png` is a committed reference artifact —
+real Grok output for `recipes/live_test_recipe.json`, overlaid — used by the
+tutorial and the smoke test.
+
+---
+
+## Tests
+
+```bash
+uv run pytest
+```
+
+Six modules under `tests/`, covering prompt rendering, both CLIs, the brief
+expander, typography, and an end-to-end smoke test. The smoke test skips with a
+clear message when the reference artifacts in `outputs/` are absent.
+
+---
+
+## Status
+
+| Component | State |
+|---|---|
+| Prompt rendering from `styles.json` | done |
+| Recipe loader and dry-run driver | done |
+| ImageMagick typography overlay | done |
+| Topic expansion (`expand_brief`) | done, library only — no CLI |
+| Hermes `SKILL.md` wrapper | done, shipped in `skills/`; [installed manually](#install-the-hermes-skill) |
+| Image-model call from the driver | not built — by design; see [About the pipeline](docs/explanation-pipeline.md#why-the-driver-never-calls-a-model) |
+| Candidate scoring | not built |
+| Aspect-aware overlay masks | not built |
+| Video augmentation | out of scope; [rationale](docs/explanation-pipeline.md#deliberate-omissions) |
+| Post → brief ingestion | out of scope; [rationale](docs/explanation-pipeline.md#deliberate-omissions) |
+| Calendar rotation tool | not built |
+
+---
+
+## Documentation
+
+| Document | Type | Read it when |
+|---|---|---|
+| [Tutorial: your first announcement image](docs/tutorial-first-image.md) | Tutorial | Learning the pipeline by running it once |
+| [Python API and implementation reference](docs/reference-python-api.md) | Reference | Calling the library, or reading the internals |
+| [About the pipeline](docs/explanation-pipeline.md) | Explanation | Understanding what's built, what isn't, and why |
+| [About the design language](docs/explanation-design-language.md) | Explanation | Choosing a family, writing a prompt, judging a candidate |
+| [`skills/lith/SKILL.md`](skills/lith/SKILL.md) | Agent instructions | Checking what a Hermes session will do on your behalf |
+| This README | Reference | Looking up a flag, a field, or a signature |
+
+MIT licensed. See [LICENSE](LICENSE).

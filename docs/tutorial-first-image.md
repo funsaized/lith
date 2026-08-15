@@ -211,11 +211,11 @@ We turned a sentence into a finished graphic:
 
 ## Where to go next
 
-- The other six style families, their prompt recipes, and when to use each —
-  [README §1 and §3](../README.md#1-the-seven-style-families).
-- The six required prompt slots every brief fills —
-  [README §4](../README.md#4-the-non-negotiable-prompt-anatomy).
+- The other six style families and when to use each —
+  [README → Style families](../README.md#style-families).
+- Why the families exist, the six prompt slots, and the failure modes to watch
+  for — [About the design language](explanation-design-language.md).
+- Why the driver never calls a model itself —
+  [About the pipeline](explanation-pipeline.md).
 - Full CLI flags for both entry points, including `--image-url`, `--font`, and
-  `--output-dir` — [README §8](../README.md#8-usage).
-- The failure modes to watch for (model typography, the "AI gradient" trap) —
-  [README §9](../README.md#9-pitfalls).
+  `--output-dir` — [README → CLI reference](../README.md#cli-reference).

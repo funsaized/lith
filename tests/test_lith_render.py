@@ -1,14 +1,10 @@
 import json
-from pathlib import Path
 
 import pytest
 
-from scripts.pipeline.paths import output_path, slug
-from scripts.pipeline.recipe import FAMILY_KEYS, load_recipe
-from scripts.pipeline.render import render_prompt
-from scripts.pipeline.styles import get_family, load_styles
-
-STYLES_PATH = Path(__file__).resolve().parents[1] / "templates" / "styles.json"
+from lith import load_recipe, output_path, render_prompt, slug
+from lith.recipe import FAMILY_KEYS
+from lith.styles import get_family, load_styles
 
 
 def test_slug_lowercases_and_strips_non_alnum():
@@ -24,14 +20,25 @@ def test_output_path_uses_slug(tmp_path):
 
 def test_load_recipe_validates_required_fields(tmp_path):
     p = tmp_path / "r.json"
-    p.write_text(json.dumps({
-        "name": "x", "style": "B",
-        "brief": {"topic": "t", "headline": "h", "icon": "i", "aspect": "16:9"},
-        "model": "grok-imagine-image-quality",
-    }))
-    r = load_recipe(p)
+    p.write_text(
+        json.dumps(
+            {
+                "name": "x",
+                "style": "B",
+                "brief": {
+                    "topic": "t",
+                    "headline": "h",
+                    "icon": "i",
+                    "aspect": "16:9",
+                },
+                "model": "grok-imagine-image-quality",
+            }
+        )
+    )
+    r = load_recipe(str(p))
     assert r.name == "x"
     assert r.family_key == "B_brutalist"
+    assert render_prompt(r)["style"] == "Sci-fi brutalist UI"
 
 
 def test_load_recipe_rejects_missing_brief_fields(tmp_path):
@@ -67,12 +74,18 @@ def test_palette_value_joins_lists_with_pipe():
 
 def test_all_seven_families_have_headline_slot():
     """Every family template must include the rendered headline."""
-    styles = load_styles(STYLES_PATH)
+    styles = load_styles()
     for letter in "ABCDEFG":
         fam = get_family(styles, letter)
-        out = render_prompt(fam, {
-            "topic": "t", "headline": "TEST_HEADLINE", "icon": "gear", "aspect": "16:9",
-        })
+        out = render_prompt(
+            fam,
+            {
+                "topic": "t",
+                "headline": "TEST_HEADLINE",
+                "icon": "gear",
+                "aspect": "16:9",
+            },
+        )
         assert "{headline}" not in out["prompt"], (
             f"family {letter} left an unfilled {{headline}} placeholder: {out['prompt'][:200]}"
         )

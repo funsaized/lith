@@ -2,7 +2,7 @@ import sys
 
 import pytest
 
-from scripts.pipeline.expand import expand_brief, parse_brief_response
+from lith import expand_brief, parse_brief_response
 
 
 def test_parse_fenced_json():

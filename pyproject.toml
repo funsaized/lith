@@ -33,16 +33,15 @@ test = [
 ]
 
 [project.scripts]
-lith-generate = "scripts.generate:main"
-lith-run = "scripts.run:main"
+lith-generate = "lith.cli.generate:main"
+lith-run = "lith.cli.run:main"
 
 [project.urls]
 Repository = "https://github.com/funsaized/lith"
 Issues = "https://github.com/funsaized/lith/issues"
 
-[tool.setuptools]
-packages = ["scripts", "scripts.pipeline"]
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.setuptools.package-data]
-"scripts" = ["overlay_text.py"]
-"scripts.pipeline" = []
+"lith" = ["overlay_text.py", "data/styles.json"]

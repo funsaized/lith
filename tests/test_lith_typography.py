@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts.pipeline.typography import overlay_typography
+from lith import overlay_typography
 
 
 @patch("subprocess.run")

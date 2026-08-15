@@ -13,16 +13,9 @@ import sys
 import urllib.parse
 import urllib.request
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
+from lith import load_recipe, output_path, overlay_typography, render_prompt
+from lith.styles import get_family, load_styles
 
-from scripts.pipeline.paths import output_path
-from scripts.pipeline.recipe import load_recipe
-from scripts.pipeline.render import render_prompt
-from scripts.pipeline.styles import get_family, load_styles
-from scripts.pipeline.typography import overlay_typography
-
-STYLES_PATH = ROOT / "templates" / "styles.json"
 ALLOWED_SCHEMES = ("http", "https")
 DOWNLOAD_TIMEOUT = 30
 DOWNLOAD_MAX_BYTES = 25 * 1024 * 1024
@@ -62,9 +55,7 @@ def download(url: str, dst: pathlib.Path) -> pathlib.Path:
     if not parsed.netloc:
         raise ValueError(f"refusing to fetch non-URL: {url!r}")
 
-    req = urllib.request.Request(
-        url, headers={"User-Agent": "lith/1.0"}
-    )
+    req = urllib.request.Request(url, headers={"User-Agent": "lith/1.0"})
     with urllib.request.urlopen(req, timeout=DOWNLOAD_TIMEOUT) as response:
         response_scheme = urllib.parse.urlsplit(response.url).scheme.lower()
         if response_scheme not in ALLOWED_SCHEMES:
@@ -107,7 +98,9 @@ def load_local(src: pathlib.Path, dst: pathlib.Path) -> pathlib.Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the image pipeline end-to-end.")
     parser.add_argument("--recipe", type=pathlib.Path, required=True)
-    parser.add_argument("--output-dir", type=pathlib.Path, default=ROOT / "outputs")
+    parser.add_argument(
+        "--output-dir", type=pathlib.Path, default=pathlib.Path.cwd() / "outputs"
+    )
     image_source = parser.add_mutually_exclusive_group()
     image_source.add_argument(
         "--image-url", help="Raw generated image URL (from image_generate)"
@@ -126,7 +119,7 @@ def main() -> int:
     args = parser.parse_args()
 
     recipe = load_recipe(args.recipe)
-    styles = load_styles(STYLES_PATH)
+    styles = load_styles()
     style = get_family(styles, recipe.style)
     rendered = render_prompt(style, recipe.brief)
     out_final = output_path(

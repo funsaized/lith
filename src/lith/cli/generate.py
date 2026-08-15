@@ -13,15 +13,9 @@ import json
 import pathlib
 import sys
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
-from scripts.pipeline.paths import output_path
-from scripts.pipeline.recipe import FAMILY_KEYS, load_recipe
-from scripts.pipeline.render import render_prompt
-from scripts.pipeline.styles import get_family, load_styles
-
-STYLES_PATH = ROOT / "templates" / "styles.json"
+from lith import load_recipe, output_path, render_prompt
+from lith.recipe import FAMILY_KEYS
+from lith.styles import get_family, load_styles
 
 
 def build_brief(args: argparse.Namespace) -> dict:
@@ -63,7 +57,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    styles = load_styles(STYLES_PATH)
+    styles = load_styles()
+    output_dir = pathlib.Path.cwd() / "outputs"
 
     if args.recipe:
         recipe = load_recipe(args.recipe)
@@ -72,7 +67,7 @@ def main() -> int:
         n = recipe.n
         model = recipe.model
         out = args.out or output_path(
-            ROOT / "outputs", recipe.family_key, brief["headline"], ".png"
+            output_dir, recipe.family_key, brief["headline"], ".png"
         )
     else:
         for required in ("topic", "style", "headline"):
@@ -83,7 +78,7 @@ def main() -> int:
         n = args.n
         model = args.model
         out = args.out or output_path(
-            ROOT / "outputs", FAMILY_KEYS[args.style], brief["headline"], ".png"
+            output_dir, FAMILY_KEYS[args.style], brief["headline"], ".png"
         )
 
     rendered = render_prompt(style, brief)

@@ -25,7 +25,8 @@ def test_driver_reproduces_reference_within_tolerance(tmp_path):
     result = subprocess.run(
         [
             sys.executable,
-            str(REPO / "scripts" / "run.py"),
+            "-m",
+            "lith.cli.run",
             "--recipe",
             str(REPO / "recipes" / "live_test_recipe.json"),
             "--image-file",

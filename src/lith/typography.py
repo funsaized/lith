@@ -2,9 +2,9 @@ import pathlib
 import subprocess
 import sys
 
-# Delegate to scripts/overlay_text.py. Do not reimplement the ImageMagick
+# Delegate to the bundled overlay_text.py. Do not reimplement the ImageMagick
 # argv here: that script owns the dimension-specific tuning constants.
-_OVERLAY_SCRIPT = pathlib.Path(__file__).resolve().parents[1] / "overlay_text.py"
+_OVERLAY_SCRIPT = pathlib.Path(__file__).resolve().parent / "overlay_text.py"
 
 
 def overlay_typography(

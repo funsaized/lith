@@ -10,9 +10,15 @@ REPO = Path(__file__).resolve().parents[1]
 
 def test_dry_mode_prints_plan():
     result = subprocess.run(
-        [sys.executable, str(REPO / "scripts" / "run.py"),
-         "--recipe", str(REPO / "recipes" / "live_test_recipe.json")],
-        capture_output=True, text=True,
+        [
+            sys.executable,
+            "-m",
+            "lith.cli.run",
+            "--recipe",
+            str(REPO / "recipes" / "live_test_recipe.json"),
+        ],
+        capture_output=True,
+        text=True,
     )
     assert result.returncode == 0
     out = result.stdout + result.stderr
@@ -21,14 +27,14 @@ def test_dry_mode_prints_plan():
 
 
 def test_download_rejects_non_http_schemes():
-    from scripts.run import download
+    from lith.cli.run import download
 
     with pytest.raises(ValueError, match="refusing to fetch scheme"):
         download("file:///etc/passwd", Path("/tmp/x.jpg"))
 
 
 def test_download_rejects_oversized_response(tmp_path):
-    from scripts.run import download
+    from lith.cli.run import download
 
     fake = MagicMock()
     fake.url = "http://example.com/huge.jpg"
@@ -48,7 +54,7 @@ def test_download_rejects_oversized_response(tmp_path):
 
 
 def test_download_rejects_redirect_to_disallowed_scheme(tmp_path):
-    from scripts.run import download
+    from lith.cli.run import download
 
     fake = MagicMock()
     fake.url = "ftp://example.com/image.jpg"

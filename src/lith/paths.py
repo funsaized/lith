@@ -12,6 +12,6 @@ def slug(text: str) -> str:
 
 
 def output_path(
-    out_dir: pathlib.Path, family_key: str, headline: str, ext: str
+    out_dir: pathlib.Path | str, family_key: str, headline: str, ext: str
 ) -> pathlib.Path:
-    return out_dir / f"{family_key}_{slug(headline)}{ext}"
+    return pathlib.Path(out_dir) / f"{family_key}_{slug(headline)}{ext}"

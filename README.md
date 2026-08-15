@@ -424,7 +424,23 @@ manages the project's virtual environment.
   • [uv](https://docs.astral.sh/uv/) — `brew install uv` on macOS
   • ImageMagick 7 (`magick` on `$PATH`) — only needed if you'll overlay literal copy
 
-### Clone and install
+### Install the command-line tools
+
+End users can install lith directly from GitHub:
+
+```bash
+uv tool install git+https://github.com/funsaized/lith
+lith-generate --help
+```
+
+This installs `lith-generate` and `lith-run` on your tool path. To use lith as
+a Python library in another project, add it as a normal dependency instead:
+
+```bash
+uv add git+https://github.com/funsaized/lith
+```
+
+### Contributor install
 
 ```bash
 git clone https://github.com/funsaized/lith.git
@@ -434,7 +450,7 @@ uv sync --extra test
 
 `uv sync --extra test` creates `.venv/`, resolves dependencies from
 `pyproject.toml`, and installs the project in editable mode. The editable
-install adds two console-script entry points to the venv:
+install adds the same two console-script entry points to the venv:
 
   • `lith-generate` — render a brief into a prompt and plan
   • `lith-run` — run the end-to-end driver
@@ -442,8 +458,9 @@ install adds two console-script entry points to the venv:
 ### Verify the install
 
 ```bash
-.venv/bin/lith-generate \
+uv run lith-generate \
   --topic "test" --style B --aspect 16:9 --headline "32 LANGS" --icon "globe"
+uv run python -c "from lith import render_prompt"
 ```
 
 You should see the rendered prompt printed and exit 0.
@@ -469,9 +486,18 @@ with a clear message.
 The Python side renders the prompt and overlays typography. The model
 call and candidate selection are made by a Hermes session or by hand.
 
-There are three entry points, all installed by `uv sync` above:
+The package exposes a Python API plus two command-line entry points.
 
-### 1. Render a prompt
+### Python API
+
+```python
+from lith import load_recipe, render_prompt
+
+recipe = load_recipe("recipes/live_test_recipe.json")
+rendered = render_prompt(recipe)
+```
+
+### 1. Render a prompt from the CLI
 
 From flags:
 
@@ -518,19 +544,18 @@ For local debug or smoke testing, replace `--image-url` with
 Dry mode (no `--image-url` and no `--image-file`) prints the rendered plan
 and exits 0 — safe to run before the model call has been made.
 
-### Calling scripts directly
+### Hermes skill
 
-If you'd rather call the scripts by path (for example, from a CI pipeline
-that doesn't activate the venv), do this:
+Hermes discovers lith through a thin instruction wrapper installed separately
+from the Python package:
 
 ```bash
-PYTHONPATH=. uv run python scripts/generate.py --recipe recipes/<name>.json --call --emit-json
-PYTHONPATH=. uv run python scripts/run.py --recipe recipes/<name>.json --image-url <url> --line ...
+test -f ~/.hermes/skills/lith/SKILL.md
 ```
 
-`PYTHONPATH=.` is required because the scripts import the library as
-`scripts.pipeline.*`. With the editable install, `lith-generate` and
-`lith-run` work without it.
+The skill contains workflow instructions only; all deterministic behavior lives
+in the installed `lith` package. Restart Hermes after installing or changing the
+skill so its session-start loader can discover it.
 
 ---
 
@@ -552,7 +577,7 @@ PYTHONPATH=. uv run python scripts/run.py --recipe recipes/<name>.json --image-u
 | Prompt rendering from styles.json | done | library |
 | ImageMagick typography overlay | done | library (shells to `overlay_text.py`) |
 | Recipe loader + driver (`run.py`) | done | library |
-| In-repo SKILL.md | done | docs |
+| Hermes SKILL.md in `~/.hermes/skills/lith/` | done | Hermes environment |
 | Real `image_generate` call from driver | not done | operator/Hermes |
 | Topic-expansion helper (`expand_brief`) | done (library only) | library |
 | Post → brief ingestion (URL or scraped post → brief) | **adjacent project, not v1** | future |

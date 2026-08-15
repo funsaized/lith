@@ -30,7 +30,8 @@ class Recipe:
         return FAMILY_KEYS[self.style]
 
 
-def load_recipe(path: pathlib.Path) -> Recipe:
+def load_recipe(path: pathlib.Path | str) -> Recipe:
+    path = pathlib.Path(path)
     data = json.loads(path.read_text())
     brief = data.get("brief", {})
     missing = REQUIRED_BRIEF_KEYS - brief.keys()

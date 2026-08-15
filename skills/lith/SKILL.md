@@ -86,12 +86,19 @@ the full copy — every word is printed into the image verbatim:
 }
 ```
 
-`topic`, `headline`, `icon`, and `aspect` are required on every brief — a
-recipe missing any of them fails to load. The spec keys are all optional.
+`topic`, `headline` and `icon` are required on every brief — a recipe missing
+any of them fails to load. Everything else, `aspect` included, is optional.
 
 Use 3-5 sections of 2-4 lines each, every line under 9 words and concrete —
 real names, numbers, commands, never filler. Keep total body copy to 60-140
 words. Set `base_color` whenever the family palette lists several backgrounds.
+
+Omit `layout` unless the content has a shape worth naming: `timeline` for
+ordered steps, `radial` for a hub with satellites, `split` for a comparison,
+`hero` when one section outranks the rest, `masonry` or `zigzag` when the piece
+should read as editorial rather than tabular. Otherwise lith derives a grid from
+the section count and the frame. `diagram` is drawn, not lettered — only the
+labels it names appear as text.
 
 ## Conventions
 

@@ -43,7 +43,7 @@ the step it can't do comes in the middle.
 ## Why the driver never calls a model
 
 `lith-generate --call --emit-json` emits an envelope — prompt, negative prompt,
-aspect ratio, model, n, seed, output path, style — and stops. Someone else makes
+aspect ratio, model, n, seed, output path, style, aspect note — and stops. Someone else makes
 the call and hands the result back via `--image-url` or `--image-file`.
 
 Three reasons this split is worth the extra hop:
@@ -98,7 +98,6 @@ SUBTITLE: A PRIVATE CLOUD IN THREE MACHINES
 SECTION 1 HEADING: 01 - THE HUB
     - Mac mini M4, always on
     - mosh survives every dropped link
-DIAGRAM: A central cloud labeled TAILSCALE with lines to MINI, AIR and NZXT
 FOOTER: s11a.com
 ```
 
@@ -109,12 +108,18 @@ word that is not listed here.* The negative prompt pushes the same way —
 `invented words`, `lorem ipsum`, `misspelled words`. The model still draws the
 glyphs, but it is never the author.
 
-`render.format_layout` is the other half. It emits only the zones the brief
-actually has copy for: a title-only brief gets one zone and a title sized to
-dominate the frame, while a four-section brief gets a title, a two-column panel
-grid, a diagram panel, and a footer rule. An unconditional four-zone skeleton
-would contradict the verbatim rule directly — told to draw a section grid with
-no sections to put in it, the model fills the boxes with invented copy.
+`layout.format_layout` is the other half. It emits only the zones the brief
+actually has copy for, arranged by one of
+[fifteen named layouts](explanation-layouts.md). An unconditional skeleton would
+contradict the verbatim rule directly — told to draw a section grid with no
+sections to put in it, the model fills the boxes with invented copy.
+
+The two blocks are kept rigidly apart, and the boundary is the whole design.
+Everything in the copy block is lettered; nothing else is. That is why a
+`diagram` lives in the layout block rather than the copy block — it is a
+description of a picture, not a quotation — and why zone notes are lowercase
+prose. When they were ALL-CAPS labels, three of seven families lettered
+`TITLE BLOCK` and `4 SECTION PANELS` into real output as visible headings.
 
 **This narrows the failure mode; it does not close it.** A model can still
 misspell a word it was handed. What it can no longer do is decide what the
@@ -127,8 +132,9 @@ character against the spec, which is why stage 4 stays a human.
 Lith takes input from three places and treats them differently.
 
 **Recipe files are trusted.** You wrote them. `load_recipe` validates that the
-brief carries `topic`, `headline`, `icon`, and `aspect`, and otherwise takes the
-JSON at face value.
+brief carries `topic`, `headline` and `icon`, and otherwise takes the JSON at
+face value. `aspect` is deliberately not required: it has a resolution chain,
+and demanding it in every recipe would make most of that chain unreachable.
 
 **Model-generated image URLs are not.** `--image-url` reaches out to a host
 lith didn't choose, so `download()` enforces four guards: HTTP(S) schemes only,
@@ -137,11 +143,18 @@ streaming rather than after; and a magic-byte check for JPEG, PNG, or WebP
 before anything is written to disk. A model API that returns an HTML error page
 fails at the magic-byte check instead of becoming a corrupt `.jpg`.
 
-**Spec copy is trusted but shape-checked.** The strings in `sections`,
-`diagram`, and `footer` are yours, and `format_spec` passes them through
-unescaped — they are going into a prompt, not a shell. What it does check is
-shape: a section without a `heading` raises `ValueError` naming its index,
-rather than silently emitting a panel with a blank banner.
+**Spec copy is trusted but shape-checked.** The strings in `sections` and
+`footer` are yours, and `format_spec` passes them through unescaped — they are
+going into a prompt, not a shell. What it checks is shape: a section without a
+`heading` raises `ValueError` naming its index, and an unknown `layout` or
+`diagram_position` raises with the valid options listed, rather than silently
+falling back to a default the recipe did not ask for.
+
+**Model capabilities are not trusted either.** A model asked for a ratio it
+cannot produce substitutes one silently. Lith clamps the request to the model's
+real capability set before the call, and compares the published image's actual
+dimensions against the request afterward — the layout in the prompt was composed
+for the frame that was asked for.
 
 `--image-file` skips the network guards but keeps the magic-byte check, since a
 local path is your own. Either way the bytes land on a `.part` file first and
@@ -178,6 +191,9 @@ a habit, not a scheduler.
 
 - [Tutorial: your first announcement image](tutorial-first-image.md) — every
   stage above, run once, end to end
-- [About the design language](explanation-design-language.md) — why the seven
-  families exist and what they share
+- [About output styles](explanation-output-styles.md) — how one spec renders
+  seven ways
+- [About layouts](explanation-layouts.md) — how panels get arranged
+- [About the design language](explanation-design-language.md) — the palette and
+  composition rules underneath the seven
 - [README → Status](../README.md#status) — the per-component build state

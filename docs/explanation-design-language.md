@@ -21,8 +21,8 @@ slots; the brief fills the slots and nothing else. The model gets no room to
 pick a style, because the style arrived pre-decided.
 
 That is why `render_prompt` raises `KeyError` when a template references a slot
-the brief doesn't provide, instead of substituting something plausible. A
-silently dropped slot is a silently drifted style.
+lith does not supply, instead of substituting something plausible. A silently
+dropped slot is a silently drifted style.
 
 ## The brand underneath the seven
 
@@ -38,70 +38,40 @@ strict signature is the point. What stays constant across all seven:
   `rules.max_accent_colors: 3`.
 - **Oversized typography.** Headlines run 8–15% of frame height. Body copy is
   monospaced or a chalkboard serif.
-- **One subject, one idea.** Every image is a single declarative statement, not
-  an eight-bullet infographic. Two ideas means two images — except in the
-  spec-driven families, where the dense poster is the format.
+- **One subject, one idea — historically.** This held when an image carried
+  three words. It no longer describes the system: every family now renders a
+  spec, and a dense poster is several ideas and a hundred-odd words on purpose.
+  What survives is the discipline underneath it — every one of those words was
+  written down first.
 - **Posters, not slides.** Readable from a thumbnail, designed to be re-pinned.
-- **Hand-drawn energy.** Even the most polished family carries an asymmetric
-  composition, an off-center alignment, or one decorative flourish.
+- **Hand-drawn energy.** Even the most polished family carries an off-centre
+  alignment or one decorative flourish. The `masonry`, `zigzag`, `diagonal` and
+  `sidebar` [layouts](explanation-layouts.md) are where this stopped being an
+  aspiration and became selectable.
 - **A shared iconography.** Lightning bolts, sparkles, skulls, magnifying
   glasses, telescopes, gears, concentric circles, and framing devices like
   "1Q", "Chapter", "Issue 001", mock newspaper mastheads. Each family declares
   its own allowed set in its `iconography` array.
 
-Those last constraints appear in `styles.json` under `rules` — not because
-anything enforces them at runtime, but because they are the checklist a human
-scores candidates against. The checklist describes the sparse families: A, B,
-C, E, F, G. A family whose template carries the `{spec}` and `{layout}` slots
-overrides `max_words_in_image` and `always_one_idea_per_image` on purpose, and
-is scored against its spec instead.
+Those constraints appear in `styles.json` under `rules` — not because anything
+enforces them at runtime, but because they are the checklist a human scores
+candidates against.
+
+Two of them are now historical. `max_words_in_image: 3` and
+`always_one_idea_per_image` describe lith before it was spec-driven; all seven
+families now carry `{spec}` and `{layout}`, and a poster is scored against its
+spec rather than a word count. The palette and composition rules still hold
+universally.
 
 ## The seven families
 
-Each family below names the aesthetic, what it's for, and the trap it avoids.
-The literal prompt text lives in `styles.json`; it is not reproduced here,
-because a second copy of a prompt template is a copy that goes stale.
+Each family commits to one specific look: sticker sheet, mission-control HUD,
+patent drawing, manga insert, editorial screenshot, wood engraving, deploy log.
+The literal prompt text lives in `styles.json`, and a second copy of a prompt
+template is a copy that goes stale, so it is not reproduced anywhere.
 
-**A — Sticker / whisper-joke infographic.** Multi-panel sticker sheet on near-
-black, neon flat shapes, oversized text, comic-book bursts. Loud and memetic.
-Best for quick reactions and low-stakes "we shipped a thing" posts. Its accent
-slot is the only one in the set that carries four candidate colors at once —
-`_palette_value` joins them with ` | ` and lets the model pick, because a
-sticker sheet wants variety within the frame.
-
-**B — Sci-fi brutalist UI.** A single black panel, a 180px monospaced headline,
-a 1px cyan grid, one silhouette at 20% opacity. Mission control. Best for
-feature flagships and capability reveals, and the most reliably legible of the
-seven at thumbnail size. This is the family the bundled recipe is written for.
-
-**C — Vintage technical manual / patent diagram.** Sepia paper, fine ink lines,
-double-rule border, patent-style "FIG. 1" callouts. Best for "how it works"
-posts, where the aesthetic itself makes the claim that something was
-engineered. The only family that uses the `{volume}` slot.
-
-**D — Manga tape-insert / risograph.** One bold flat ground, thick manga
-outlines, screen-tone shading, registration offset. Best for release
-announcements, "chapter" framing, and anything that needs to say four things at
-once. The only family where panels are the point, and so far the only one
-carrying the `{spec}` and `{layout}` slots: the brief supplies the full copy —
-sections, headings, body lines, a diagram, a footer — and the template orders
-the model to render it verbatim. The one-idea-per-image rule bends here and
-nowhere else, which is exactly why it is the family with a spec.
-
-**E — Editorial screenshot polish.** A real product screenshot on a deep purple
-gradient with a radial glow. Best for UI demos. It is also the family that
-comes closest to the generic-AI-gradient failure mode, which is the price of
-using a gradient at all; it survives because the screenshot is real content,
-not a rendered abstraction.
-
-**F — Woodcut / analog engraving.** Black on cream, 19th-century cross-hatching,
-heavy serif, drop cap. Best for sponsor announcements and "memo from the team"
-posts — anywhere gravitas beats energy.
-
-**G — Role-log / status dashboard.** A dark terminal panel of monospaced log
-lines with one highlighted success event. Best for operational posts and
-build-in-public stats. Nearly monochrome by design: a single accent marks the
-moment that matters.
+What each family is for, how it renders a section panel, and where its aesthetic
+fights the copy: [About output styles](explanation-output-styles.md).
 
 You can also produce multi-family strips — three or four panels, each in a
 different family — for a monthly signature post. Nothing in the code assembles
@@ -109,21 +79,22 @@ these; it's a manual composite of separate runs.
 
 ## Prompt anatomy
 
-Every family template covers the same six slots, in this order:
+Every family template covers the same six concerns, in this order:
 
 ```
-[FRAME]      aspect, composition, camera/vantage, foreground/background
-[PALETTE]    2-4 colors with hex codes; one accent per image
-[TYPO]       font + size + weight + color, headline vs body distinction
+[FRAME]      ground, texture, and the overall visual register
+[LAYOUT]     the zone notes, substituted at {layout}
+[TYPO]       how the title, panels, drawing and footer are drawn in this family
 [ICON]       one or two named motifs/glyphs (lightning, skull, gear)
-[COPY]       every literal word that must appear in the image, verbatim
+[COPY]       the literal copy block, substituted at {spec}
 [MOOD]       one sentence: who is this for, what is the feeling
 ```
 
-`[COPY]` is the slot the two family kinds diverge on. In a sparse family it is
-the headline and nothing else. In a spec-driven family it is the whole
-serialized block — title, sections, diagram, footer — followed by the standing
-order to reproduce it character for character.
+`[LAYOUT]` and `[COPY]` are shared verbatim across all seven — the same two
+substituted blocks, in the same order, with the same standing order to reproduce
+the copy character for character. Only `[FRAME]`, `[TYPO]`, `[ICON]` and
+`[MOOD]` are the family's own. That ratio is the point: a family decides how a
+poster looks, never what it says.
 
 They're prose in `prompt_template` rather than labeled sections, but the order
 holds across all seven, and a new family should follow it. The rules behind the
@@ -132,12 +103,11 @@ order:
 1. **Never let the model choose a font.** Say "display sans-serif, Helvetica
    Neue Black, 180px" or "Bodoni, 200px, all caps." An unspecified font is a
    different font every run.
-2. **In a sparse family, in-image text should be one to three words.** "The
-   Crew." "New in Hermes." "1Q." "Just /run." Anything longer is a caption, and
-   captions belong in the post, not the picture. `rules.max_words_in_image`
-   records this as 3, and it holds for A, B, C, E, F, and G. A spec-driven
-   family throws the limit out — D's `[COPY]` block runs 60 to 140 words — but
-   pays for it by writing every one of those words down in the brief first.
+2. **Every word is authored before it is drawn.** A title-only poster and a
+   six-panel explainer travel the same path: the copy block. `rules.max_words_in_image`
+   records an older answer of 3; the working limit is now 60–140 words of body
+   copy, and the constraint that replaced the word count is that somebody wrote
+   each one down first.
 3. **Hex codes beat color names.** "Hot magenta" varies run to run; `#FF2E88`
    does not.
 4. **One decorative flourish per image.** A lightning bolt, a spark, a
@@ -145,7 +115,8 @@ order:
    reads as a signature.
 5. **Asymmetry wins.** Centered-everything reads as a stock template. Offset
    the headline, place the icon opposite, connect them with a flourish.
-6. **One image, one idea** — except family D, which trades the rule for a spec.
+6. **One image, one argument.** Several panels are fine; several unrelated
+   claims are not. Sections should be facets of one thing.
 
 ## Rotating families
 
@@ -185,6 +156,18 @@ training-set average. Reject and re-prompt rather than accepting it; each
 family's `negative_prompt` exists to push against this, but negatives are a
 nudge, not a guarantee.
 
+**A typeface can corrupt copy the verbatim rule protected.** Family F specified
+a Garamond-class serif, which brings old-style figures — numerals that sit below
+the baseline. `s11a.com` rendered as `sIIa.com` and `DNS-01` as `DNS-0I`: the
+right characters, the wrong word. The copy block guarantees which characters are
+requested, never which glyphs a face draws them with, so a family choosing a
+typeface is also choosing how digits and small caps behave.
+
+**Instructions can be mistaken for content.** When zone notes were ALL-CAPS
+labels, three families lettered `TITLE BLOCK` and `4 SECTION PANELS` into real
+images. Anything in the prompt that reads like a heading may be drawn as one —
+see [About layouts](explanation-layouts.md#the-instructioncontent-boundary).
+
 **Hands, faces, and real logos are unreliable.** Push toward illustration and
 silhouette; never toward photoreal people or a specific vendor's mark.
 
@@ -203,4 +186,6 @@ claim. Short, technical, dry, forward-looking. No "excited to announce."
   design language applied end to end
 - [About the pipeline](explanation-pipeline.md) — how the stages fit together
   and what's deliberately not built
+- [About output styles](explanation-output-styles.md) — what each family is for
+- [About layouts](explanation-layouts.md) — how panels get arranged
 - [README → Style families](../README.md#style-families) — the field reference

@@ -9,9 +9,10 @@ a recipe format in front of it and a publishing guard behind it.
 substitution slots. A JSON recipe format that makes a brief re-runnable. A
 poster spec — headline, subtitle, sections, diagram, footer — serialized into
 the prompt as a literal copy block the model is ordered to reproduce character
-for character, so no shipped word was invented by the model. Two console
-scripts and a six-function Python API. Standard library only, no external
-binaries.
+for character, so no shipped word was invented by the model. Fifteen named
+layouts and a resolution chain that picks one from the shape of your content
+and the shape of the frame. Two console scripts and a six-function Python API.
+Standard library only, no external binaries.
 
 **What lith is not.** It is not an image generator: no API keys, no vendor SDK,
 no model call anywhere in the codebase. `lith-generate --call` emits a JSON
@@ -26,8 +27,10 @@ New here? Work through
 brief to a finished image in five steps, no API key required.
 
 Why the pipeline stops where it does:
-[About the pipeline](docs/explanation-pipeline.md). Why there are seven
-families and what they share: [About the design language](docs/explanation-design-language.md).
+[About the pipeline](docs/explanation-pipeline.md). How the same spec renders
+seven ways: [About output styles](docs/explanation-output-styles.md). How panels
+get arranged: [About layouts](docs/explanation-layouts.md). The palette and
+composition rules underneath: [About the design language](docs/explanation-design-language.md).
 
 Driving lith from a Hermes session: [`skills/lith/SKILL.md`](skills/lith/SKILL.md),
 and [how to install it](#install-the-hermes-skill).
@@ -42,6 +45,8 @@ and [how to install it](#install-the-hermes-skill).
 - [Python API](#python-api) — full detail in [the API reference](docs/reference-python-api.md)
 - [Recipe format](#recipe-format)
 - [Style families](#style-families)
+- [Layouts](#layouts)
+- [Aspect ratios](#aspect-ratios)
 - [`styles.json` schema](#stylesjson-schema)
 - [Output paths](#output-paths)
 - [Tests](#tests)
@@ -309,12 +314,14 @@ A recipe is a JSON object. See
 | `topic` | yes | Validation and human context; not substituted into any template. |
 | `headline` | yes | The spec's `TITLE:` line **and** the output filename. |
 | `icon` | yes | `{icon}` slot. |
-| `aspect` | yes | `aspect_ratio` in the envelope. |
+| `aspect` | no | Pins the ratio. Omit to derive it from content shape, then the family default. |
 | `volume` | no | `{volume}` slot; family C only. Defaults to `"1"`. |
 | `title` | no | Overrides `headline` in the spec's `TITLE:` line only; the filename still uses `headline`. |
 | `subtitle` | no | Spec `SUBTITLE:` line, and a subtitle zone in `{layout}`. |
 | `sections` | no | List of `{heading, lines}` objects — the section panels. `heading` is required on each; `lines` is 2–4 strings. |
-| `diagram` | no | One sentence naming every label in a simple diagram; adds a diagram panel. |
+| `diagram` | no | One sentence naming every label in a simple drawing; adds a drawing zone. Described, not lettered — only the labels it names appear as text. |
+| `diagram_position` | no | `below` (default) · `above` · `beside` · `center`. `radial` forces `center`. |
+| `layout` | no | Arrangement for the section panels; see below. Omit to derive it from section count and frame shape. |
 | `footer` | no | One short line under a horizontal rule. |
 | `base_color` | no | Overrides the family palette's `background` in `{base_color}`. |
 | `accent` | no | Overrides the family palette's `accent` in `{accent}`. |
@@ -380,8 +387,69 @@ default. The brief wins over the palette, so a family listing three
 backgrounds needs the recipe to name one, or the prompt asks for a "single
 flat background" and then lists three colors.
 
+### Layouts
+
+`brief.layout` selects how section panels are arranged. Omit it and lith derives
+one from the panel count and the frame's orientation.
+
+| Key | Arrangement |
+|---|---|
+| `stack` | One full-width column |
+| `two-column` · `three-column` | Balanced columns |
+| `grid-2x2` · `grid-2x3` · `grid-3x2` · `grid-3x3` | Strict grids |
+| `hero` | First panel full width at double height, rest in a grid beneath |
+| `sidebar` | First panel a tall left rail, rest stacked to its right |
+| `timeline` | Vertical sequence on a spine, each panel stepped right |
+| `radial` | Panels ringed around a centred drawing on leader lines |
+| `masonry` | Two columns of unequal height, no two tops aligned |
+| `zigzag` | Alternating left/right, offset and rotated a degree or two |
+| `split` | Two facing groups either side of one strong rule |
+| `diagonal` | Stepping upper-left to lower-right, corners overlapping |
+
+Derived when `layout` is absent:
+
+| Panels | Portrait | Landscape |
+|---|---|---|
+| 1 | `stack` | `stack` |
+| 2 | `two-column` | `two-column` |
+| 3 | `hero` | `three-column` |
+| 4 | `grid-2x2` | `grid-2x2` |
+| 5 | `hero` | `hero` |
+| 6 | `grid-2x3` | `grid-3x2` |
+| 7–9 | `two-column` | `grid-3x3` |
+
+Column counts cap at two in portrait: three narrow columns of body copy in a
+tall frame is where legibility goes first.
+
 Why the families exist, what they have in common, and how to rotate them:
 [About the design language](docs/explanation-design-language.md).
+
+---
+
+## Aspect ratios
+
+`brief.aspect` pins a ratio. Omit it and lith resolves one, in this order:
+
+1. `brief.aspect`, when set
+2. content shape — 3+ sections resolve portrait `2:3`, 1–2 resolve `1:1`
+3. the family's `default_aspect`
+4. `16:9`
+
+Whatever those choose is then clamped to what the recipe's `model` can actually
+produce. A model does not reject a ratio it lacks; it silently substitutes one,
+so lith substitutes first and says so.
+
+| Model | Can produce |
+|---|---|
+| `grok-imagine-image-quality`, `grok-imagine-image` | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `2:1` `1:2` |
+| `gpt-image-1` | `1:1` `3:2` `2:3` |
+
+`1:1`, `3:2` and `2:3` are the intersection, and every family default is drawn
+from it or from `16:9`. When a clamp happens, `lith-generate` prints
+`warning: ...` on stderr and sets `aspect_note` in the envelope; `lith-run`
+prints it as a `[warn]` line. `lith-run` also compares the *published* image's
+real dimensions against the request and warns when they differ by more than 2%,
+which catches a model that ignored the field entirely.
 
 ---
 
@@ -447,8 +515,8 @@ smoke test.
 uv run pytest
 ```
 
-Five modules under `tests/`, covering prompt rendering, both CLIs, the brief
-expander, and an end-to-end smoke test. The smoke test skips with a clear
+Five modules under `tests/`, covering prompt rendering, layout and aspect
+resolution, both CLIs, the brief expander, and an end-to-end smoke test. The smoke test skips with a clear
 message when the reference artifact in `outputs/` is absent.
 
 ---
@@ -461,6 +529,9 @@ message when the reference artifact in `outputs/` is absent.
 | Recipe loader and dry-run driver | done |
 | Validate-and-publish driver | done |
 | Spec-driven poster copy (`{spec}` / `{layout}`) | done, all seven families |
+| Layout vocabulary (15 arrangements) | done |
+| Aspect resolution and per-model clamping | done |
+| Published-image aspect check | done |
 | Topic expansion (`expand_brief`) | done, library only — no CLI |
 | Hermes `SKILL.md` wrapper | done, shipped in `skills/`; [installed manually](#install-the-hermes-skill) |
 | Image-model call from the driver | not built — by design; see [About the pipeline](docs/explanation-pipeline.md#why-the-driver-never-calls-a-model) |
@@ -478,7 +549,9 @@ message when the reference artifact in `outputs/` is absent.
 | [Tutorial: your first announcement image](docs/tutorial-first-image.md) | Tutorial | Learning the pipeline by running it once |
 | [Python API and implementation reference](docs/reference-python-api.md) | Reference | Calling the library, or reading the internals |
 | [About the pipeline](docs/explanation-pipeline.md) | Explanation | Understanding what's built, what isn't, and why |
-| [About the design language](docs/explanation-design-language.md) | Explanation | Choosing a family, writing a prompt, judging a candidate |
+| [About layouts](docs/explanation-layouts.md) | Explanation | Choosing an arrangement, or understanding the one lith derived |
+| [About output styles](docs/explanation-output-styles.md) | Explanation | Choosing a family, and how one spec renders seven ways |
+| [About the design language](docs/explanation-design-language.md) | Explanation | The palette, typography and composition rules underneath |
 | [`skills/lith/SKILL.md`](skills/lith/SKILL.md) | Agent instructions | Checking what a Hermes session will do on your behalf |
 | This README | Reference | Looking up a flag, a field, or a signature |
 

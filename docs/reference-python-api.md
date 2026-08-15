@@ -18,6 +18,7 @@ wherever a signature says `path`.
 - [Package layout](#package-layout)
 - [`lith` — public API](#lith--public-api)
 - [`lith.render`](#lithrender)
+- [`lith.layout`](#lithlayout)
 - [`lith.aspect`](#lithaspect)
 - [`lith.recipe`](#lithrecipe)
 - [`lith.styles`](#lithstyles)
@@ -37,6 +38,7 @@ src/lith/
 ├── __init__.py          public API — re-exports six names
 ├── render.py            prompt-template substitution, spec and layout blocks
 ├── aspect.py            aspect resolution and per-model capability
+├── layout.py            zone notes and panel arrangements
 ├── recipe.py            Recipe dataclass, family keys, recipe loading
 ├── styles.py            styles.json access
 ├── paths.py             slug and output-path derivation
@@ -50,11 +52,19 @@ src/lith/
 Internal dependency direction, no cycles:
 
 ```
-recipe  ←  styles  ←  render
-   ↑         ↑          ↑
-   └─────────┴──────────┴──  __init__  ←  cli.generate, cli.run
-paths, expand                       (leaves; depend on nothing in-package)
+recipe  ←  styles
+   ↑          ↑
+   └──────────┴──  render  ←  __init__  ←  cli.generate, cli.run
+             ↗   ↖
+        aspect     layout        (pure; depend on nothing in-package)
+
+paths, expand                    (leaves; depend on nothing in-package)
 ```
+
+`render` is the only module that composes others: it resolves the frame through
+`aspect`, describes the zones through `layout`, and serializes the copy block
+itself. `aspect` and `layout` never import each other — orientation crosses
+between them as a plain `bool` argument that `render` computes.
 
 Runtime dependencies: none beyond the standard library, and no external
 binaries. The only subprocess the package ever starts is the `llm_cmd` a caller
@@ -131,7 +141,7 @@ arguments, regardless of which the template uses:
 | `{base_color}` | `brief["base_color"]`, else `style["palette"]["background"]` | `"#000000"` |
 | `{accent}` | `brief["accent"]`, else `style["palette"]["accent"]` | `"#00E5FF"` |
 | `{spec}` | [`format_spec(brief)`](#format_spec) | `""` for an empty brief |
-| `{layout}` | [`format_layout(brief)`](#format_layout) | the title zone alone |
+| `{layout}` | [`format_layout(brief, landscape)`](#format_layout) | the title zone alone |
 
 Both palette slots take the brief's value first. `D_manga` is the family this
 matters for: its `palette.background` lists three colors.
@@ -171,14 +181,15 @@ Serializes the brief's copy fields into the literal block substituted at
 `{spec}`. Every line it emits is text the model is instructed to reproduce
 character for character.
 
-Emitted in this fixed order, each part omitted when its field is absent:
+Emitted in this fixed order, each part omitted when its field is absent. The
+block is purely literal text — `diagram` is a description, so it lives in
+[`format_layout`](#format_layout) among the instructions instead:
 
 | Part | Source | Form |
 |---|---|---|
 | Title | `brief["title"]`, else `brief["headline"]` | `TITLE: <text>` |
 | Subtitle | `brief["subtitle"]` | `SUBTITLE: <text>` |
 | Sections | `brief["sections"]`, in order | `SECTION <n> HEADING: <heading>` then one `    - <line>` per entry in `lines` |
-| Diagram | `brief["diagram"]` | `DIAGRAM: <text>` |
 | Footer | `brief["footer"]` | `FOOTER: <text>` |
 
 Parts are joined with `\n`. Section numbering is 1-based and follows list
@@ -190,30 +201,6 @@ recipe produces.
 
 **Raises** `ValueError` when a section has no `heading`, naming its 1-based
 index and including its `repr`.
-
-### `format_layout`
-
-```python
-format_layout(brief: dict[str, Any]) -> str
-```
-
-Describes the zones the brief actually has copy for, substituted at
-`{layout}`. Zones are numbered `(1)`, `(2)`, … and joined with `\n`.
-
-The wording is deliberately aesthetic-neutral — it names structure, counts and
-sizes only. Each family's `prompt_template` says how those zones are drawn, so
-one function serves all seven.
-
-| Zone | Emitted when | Notes |
-|---|---|---|
-| Title block | always | Sized `12-15%` of frame height with sections present, `30-40%` and "dominating the composition" without. Gains a subtitle clause when `subtitle` is set. |
-| Section panels | `sections` is non-empty | A single column for 1–2 sections, two columns for 3 or more. Names the section count and the longest section's line count, and forbids padding a short panel. |
-| Diagram panel | `diagram` is set | Full-width box. |
-| Footer | `footer` is set | Heavy rule with the footer text beneath. |
-
-Pure — no file or network access, and deterministic for a given brief. Why the
-zones track the spec instead of being a fixed skeleton:
-[About the pipeline → Why the copy is specified](explanation-pipeline.md#why-the-copy-is-specified-never-improvised).
 
 ### `_palette_value`
 
@@ -234,6 +221,99 @@ The join preserves every element rather than taking the first; `A_sticker`
 is the family that relies on it, offering four accents in one prompt.
 
 ---
+
+---
+
+## `lith.layout`
+
+### `ARRANGEMENTS`
+
+```python
+ARRANGEMENTS: dict[str, str]
+```
+
+Maps a `layout` key to the phrase describing how section panels sit in the
+frame: `stack`, `two-column`, `three-column`, `grid-2x2`, `grid-2x3`,
+`grid-3x2`, `grid-3x3`, `hero`, `sidebar`, `timeline`, `radial`, `masonry`,
+`zigzag`, `split`, `diagonal`.
+
+### `DIAGRAM_POSITIONS`
+
+```python
+DIAGRAM_POSITIONS: dict[str, str]
+```
+
+`below` (default), `above`, `beside`, `center`. A `radial` arrangement forces
+`center`.
+
+### `_auto_arrangement`
+
+```python
+_auto_arrangement(count: int, landscape: bool) -> str
+```
+
+Private. The derived arrangement for a panel count and orientation, used by
+[`resolve_arrangement`](#resolve_arrangement) when `brief["layout"]` is absent.
+Column counts cap at two in portrait.
+
+### `resolve_arrangement`
+
+```python
+resolve_arrangement(
+    brief: dict[str, Any], count: int, landscape: bool = False
+) -> str
+```
+
+`brief["layout"]` when set, else derived from `count` and orientation. Raises
+`ValueError` naming every valid key when `brief["layout"]` is unknown.
+
+Column counts cap at two in portrait. Derived values:
+
+| `count` | portrait | landscape |
+|---|---|---|
+| 1 | `stack` | `stack` |
+| 2 | `two-column` | `two-column` |
+| 3 | `hero` | `three-column` |
+| 4 | `grid-2x2` | `grid-2x2` |
+| 5 | `hero` | `hero` |
+| 6 | `grid-2x3` | `grid-3x2` |
+| 7–9 | `two-column` | `grid-3x3` |
+| 10+ | `two-column` | `two-column` |
+
+### `format_layout`
+
+```python
+format_layout(brief: dict[str, Any]) -> str
+```
+
+Describes the zones the brief actually has copy for, substituted at
+`{layout}`. Zones are numbered `(1)`, `(2)`, … and joined with `\n`.
+
+The wording is deliberately aesthetic-neutral — it names structure, counts and
+sizes only. Each family's `prompt_template` says how those zones are drawn, so
+one function serves all seven.
+
+```python
+format_layout(brief: dict[str, Any], landscape: bool = False) -> str
+```
+
+| Zone | Emitted when | Notes |
+|---|---|---|
+| Title | always | Sized `12-15%` of frame height with sections present, `30-40%` and "dominating the composition" without. Gains a subtitle clause when `subtitle` is set. |
+| Section panels | `sections` is non-empty | Arranged per [`resolve_arrangement`](#resolve_arrangement). Names the panel count and the longest section's line count, and forbids padding a short panel. |
+| Drawing | `diagram` is set | Placed per `diagram_position`. Carries the description and the order to letter only the labels it names. |
+| Footer | `footer` is set | A rule with the footer text beneath. |
+
+Every note is lowercase prose. Nothing here may read like a heading: the block
+sits in the same prompt as the verbatim-copy order, and ALL-CAPS zone labels
+were lettered into real output as visible headings before this was fixed.
+
+**Raises** `ValueError` for an unknown `layout` or `diagram_position`.
+
+Pure — no file or network access, and deterministic for a given brief. Why the
+zones track the spec instead of being a fixed skeleton:
+[About the pipeline → Why the copy is specified](explanation-pipeline.md#why-the-copy-is-specified-never-improvised).
+
 
 ## `lith.aspect`
 
@@ -347,41 +427,11 @@ Maps a style letter to a family key in `styles.json`.
 ### `REQUIRED_BRIEF_KEYS`
 
 ```python
-REQUIRED_BRIEF_KEYS: set[str] = {"topic", "headline", "icon", "aspect"}
+REQUIRED_BRIEF_KEYS: set[str] = {"topic", "headline", "icon"}
 ```
 
 Enforced by `load_recipe`. Note that `volume` is optional and `topic` is
 validated but never substituted into any template.
-
-### `MODEL_ASPECTS`
-
-```python
-MODEL_ASPECTS: dict[str, set[str]]
-```
-
-Aspect ratios each image model can actually produce.
-
-| Model | Supported |
-|---|---|
-| `grok-imagine-image-quality`, `grok-imagine-image` | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `2:1` `1:2` |
-| `gpt-image-1` | `1:1` `3:2` `2:3` |
-
-`1:1`, `3:2`, and `2:3` are the intersection, and every bundled family's
-`default_aspect` is drawn from it. Models absent from the table are treated as
-unconstrained.
-
-### `unsupported_aspect`
-
-```python
-unsupported_aspect(model: str, aspect: str) -> str | None
-```
-
-Returns a message naming the model's supported set when it cannot produce
-`aspect`, else `None`. An unknown `model` returns `None` rather than a false
-positive. `cli.generate` prints the result to stderr before the envelope is
-consumed.
-
-Pure — no file or network access.
 
 ### `Recipe`
 

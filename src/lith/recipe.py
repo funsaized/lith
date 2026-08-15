@@ -12,7 +12,10 @@ FAMILY_KEYS = {
     "G": "G_log",
 }
 
-REQUIRED_BRIEF_KEYS = {"topic", "headline", "icon", "aspect"}
+# ``aspect`` is deliberately absent: it has a full resolution chain in
+# lith.aspect (explicit -> content shape -> family default -> clamp), so
+# requiring it in every recipe would make three of those rungs unreachable.
+REQUIRED_BRIEF_KEYS = {"topic", "headline", "icon"}
 
 
 

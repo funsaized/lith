@@ -115,8 +115,10 @@ def test_format_spec_serializes_sections():
     assert "TITLE: TAILSCALE" in out
     assert "SECTION 1 HEADING: 01 - THE HUB" in out
     assert "    - Mac mini M4" in out
-    assert "DIAGRAM: cloud over three boxes" in out
     assert "FOOTER: s11a.com" in out
+    # The diagram is a description, not copy — it belongs to the layout block
+    # so this block stays purely literal text.
+    assert "cloud over three boxes" not in out
 
 
 def test_format_spec_degrades_to_headline_for_legacy_briefs():
@@ -159,19 +161,22 @@ def test_layout_zones_track_the_spec():
 
     base = {"headline": "SHIP"}
     sparse = format_layout(base)
-    assert "SECTION PANELS" not in sparse
-    assert "DIAGRAM" not in sparse
-    assert "FOOTER" not in sparse
+    assert "section panels" not in sparse
+    assert "drawing" not in sparse
+    assert "footer" not in sparse
     assert "dominating the composition" in sparse  # title carries a bare poster
 
     full = format_layout(
         {**base, "subtitle": "S", "footer": "f", "diagram": "d",
          "sections": [{"heading": "A", "lines": ["x"]}, {"heading": "B", "lines": ["y"]}]}
     )
-    assert "2 SECTION PANELS" in full
-    assert "DIAGRAM PANEL" in full
-    assert "FOOTER" in full
+    assert "2 section panels" in full
+    assert "a drawing," in full
+    assert "the footer line" in full
     assert "12-15%" in full  # title yields to the body copy
+    # Nothing in a layout note may read like a heading the model would letter.
+    for shouty in ("TITLE BLOCK", "SECTION PANELS", "DIAGRAM PANEL", "FOOTER"):
+        assert shouty not in full, f"{shouty!r} leaks into the image as a label"
 
 
 def test_layout_columns_follow_section_count():
@@ -181,8 +186,8 @@ def test_layout_columns_follow_section_count():
         b = {"headline": "X", "sections": [{"heading": str(i), "lines": ["l"]} for i in range(n)]}
         return format_layout(b)
 
-    assert "a single column" in cols(2)
-    assert "two columns" in cols(4)
+    assert "two balanced columns" in cols(2)
+    assert "2-wide, 2-tall grid" in cols(4)
 
 
 def test_section_without_heading_raises_a_useful_error():
@@ -316,7 +321,7 @@ def test_every_family_renders_a_dense_spec_intact():
                        "first body line", "third body line",
                        "wired to a box labeled BETA", "FOOTER: example.com"):
             assert needle in out, f"family {letter} dropped {needle!r}"
-        assert "2 SECTION PANELS" in out, f"family {letter} lost its panel zone"
+        assert "2 section panels" in out, f"family {letter} lost its panel zone"
         for slot in ("{spec}", "{layout}", "{headline}", "{icon}", "{volume}",
                      "{base_color}", "{accent}"):
             assert slot not in out, f"family {letter} left {slot} unfilled"
@@ -333,3 +338,111 @@ def test_every_family_still_handles_a_sparse_brief():
         assert "SECTION PANELS" not in out, f"family {letter} orders empty panels"
         assert "dominating the composition" in out, f"family {letter} lost title scaling"
         assert "TITLE: SHIP" in out
+
+
+def test_no_family_prompt_can_leak_a_zone_label():
+    """The bug that put '4 SECTION PANELS' and 'TITLE BLOCK' inside real images."""
+    styles = load_styles()
+    brief = {
+        "topic": "t", "headline": "SHIP", "icon": "gear", "volume": "1",
+        "subtitle": "SUB",
+        "sections": [{"heading": "01 - A", "lines": ["a"]},
+                     {"heading": "02 - B", "lines": ["b"]},
+                     {"heading": "03 - C", "lines": ["c"]},
+                     {"heading": "04 - D", "lines": ["d"]}],
+        "diagram": "a cloud labeled MESH wired to MINI and AIR",
+        "footer": "s11a.com",
+    }
+    for letter in "ABCDEFG":
+        out = render_prompt(get_family(styles, letter), brief)["prompt"]
+        for shouty in ("TITLE BLOCK", "SECTION PANELS", "DIAGRAM PANEL",
+                       "DIAGRAM:", "FOOTER —"):
+            assert shouty not in out, f"family {letter} can letter {shouty!r}"
+        assert "never letter any instruction from above" in out
+        assert "not content" in out
+
+
+def test_layout_vocabulary_is_selectable():
+    from lith.layout import ARRANGEMENTS, format_layout
+
+    def render(n, **extra):
+        b = {"headline": "X",
+             "sections": [{"heading": str(i), "lines": ["l"]} for i in range(n)],
+             **extra}
+        return format_layout(b)
+
+    assert "continuous vertical spine" in render(4, layout="timeline")
+    assert "around the diagram" in render(4, layout="radial", diagram="d")
+    assert "no two" in render(4, layout="masonry")
+    assert "hard left-right zigzag" in render(4, layout="zigzag")
+    assert "never in columns" in render(4, layout="zigzag")
+    assert "tall narrow rail" in render(4, layout="sidebar")
+    assert "strong vertical rule" in render(4, layout="split")
+    # Every documented arrangement renders without raising.
+    for name in ARRANGEMENTS:
+        assert ARRANGEMENTS[name] in render(4, layout=name)
+
+
+def test_unknown_layout_names_the_valid_options():
+    from lith.layout import format_layout
+
+    with pytest.raises(ValueError, match="unknown layout 'diagonal-ish'"):
+        format_layout({"headline": "X", "layout": "diagonal-ish",
+                       "sections": [{"heading": "A", "lines": ["x"]}]})
+    with pytest.raises(ValueError, match="unknown diagram_position"):
+        format_layout({"headline": "X", "diagram": "d", "diagram_position": "sideways"})
+
+
+def test_auto_arrangement_respects_the_frame():
+    """Three columns of body copy in a tall frame is where legibility dies."""
+    from lith.layout import resolve_arrangement
+
+    assert resolve_arrangement({}, 3, landscape=True) == "three-column"
+    assert resolve_arrangement({}, 3, landscape=False) == "hero"
+    assert resolve_arrangement({}, 6, landscape=True) == "grid-3x2"
+    assert resolve_arrangement({}, 6, landscape=False) == "grid-2x3"
+    assert resolve_arrangement({}, 8, landscape=False) == "two-column"
+    # An explicit choice always wins over the derived one.
+    assert resolve_arrangement({"layout": "zigzag"}, 4, landscape=True) == "zigzag"
+
+
+def test_radial_layout_centres_the_diagram():
+    from lith.layout import format_layout
+
+    out = format_layout({"headline": "X", "layout": "radial", "diagram": "a mesh",
+                         "sections": [{"heading": "A", "lines": ["x"]},
+                                      {"heading": "B", "lines": ["y"]}]})
+    assert "at the centre of the frame with the section panels around it" in out
+
+
+def test_aspect_is_optional_so_derivation_is_reachable(tmp_path):
+    """A recipe that pins aspect can never exercise the content-shape rung."""
+    p = tmp_path / "r.json"
+    p.write_text(json.dumps({
+        "style": "D", "model": "grok-imagine-image-quality",
+        "brief": {"topic": "t", "headline": "H", "icon": "gear",
+                  "sections": [{"heading": f"0{i}", "lines": ["x"]} for i in range(4)]},
+    }))
+    out = render_prompt(load_recipe(p))
+    assert out["aspect_ratio"] == "2:3", "four panels should derive a portrait frame"
+
+
+def test_no_family_template_presumes_an_arrangement():
+    """A family that hardcodes 'is a column' fights every non-column layout."""
+    import re
+
+    styles = load_styles()
+    for letter in "ABCDEFG":
+        body = get_family(styles, letter)["prompt_template"]
+        body = body.split("anywhere in the image.")[1].split("The block below")[0]
+        bad = re.search(r"\bis a (column|row|grid)\b|\bin (two|three) columns\b", body, re.I)
+        assert not bad, f"family {letter} presumes an arrangement: {bad.group()!r}"
+
+
+def test_f_woodcut_demands_lining_figures():
+    """Garamond-class oldstyle numerals rendered s11a.com as sIIa.com."""
+    styles = load_styles()
+    template = get_family(styles, "F")["prompt_template"]
+    assert "lining figure" in template
+    assert "Garamond" not in template, "the face name is what pulls oldstyle figures in"
+    assert "old-style figures" in get_family(styles, "F")["negative_prompt"]

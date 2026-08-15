@@ -1,9 +1,9 @@
 ---
-name: tech-image-pipeline
-description: Generate brand-consistent tech and AI social images with the funsaized tech-image-pipeline by rendering briefs through seven style families, coordinating image generation, and overlaying literal copy with ImageMagick. Use when a user asks for an image for a post, announcement, or feature; references style families A-G or the Teknium aesthetic; or wants a topic expanded into a complete image brief.
+name: lith
+description: Generate brand-consistent tech and AI social images by rendering briefs through seven style families, coordinating image generation, and overlaying literal copy with ImageMagick. Use when a user asks for an image for a post, announcement, or feature; references style families A-G; or wants a topic expanded into a complete image brief.
 ---
 
-# Tech-Image Pipeline
+# Lith
 
 Use Python for deterministic prompt, path, recipe, and typography work. Use the
 active model session for topic expansion and image generation.
@@ -24,15 +24,24 @@ active model session for topic expansion and image generation.
 3. Save or select a recipe, then render its model-call envelope:
 
    ```bash
-   PYTHONPATH=. python scripts/generate.py \
+   uv run lith-generate \
      --recipe recipes/<name>.json --call --emit-json
    ```
+
+   Or, without the installed entry point:
+
+   ```bash
+   PYTHONPATH=. uv run python scripts/generate.py \
+     --recipe recipes/<name>.json --call --emit-json
+   ```
+
+   Setup: `uv sync --extra test`. See README §7.
 
 4. Call the available image-generation tool with the envelope's `prompt`, `negative_prompt`, `aspect_ratio`, `model`, and `n`. Ask the user to choose when multiple candidates need subjective selection.
 5. Pass the chosen image URL to the driver and provide literal overlay lines:
 
    ```bash
-   PYTHONPATH=. python scripts/run.py --recipe recipes/<name>.json \
+   uv run lith-run --recipe recipes/<name>.json \
      --image-url <url> \
      --line SYSTEM='...' --line NEW='...' --line READY='...'
    ```

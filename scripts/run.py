@@ -63,7 +63,7 @@ def download(url: str, dst: pathlib.Path) -> pathlib.Path:
         raise ValueError(f"refusing to fetch non-URL: {url!r}")
 
     req = urllib.request.Request(
-        url, headers={"User-Agent": "tech-image-pipeline/1.0"}
+        url, headers={"User-Agent": "lith/1.0"}
     )
     with urllib.request.urlopen(req, timeout=DOWNLOAD_TIMEOUT) as response:
         response_scheme = urllib.parse.urlsplit(response.url).scheme.lower()

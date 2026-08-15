@@ -1,34 +1,44 @@
-# Tech-Image Pipeline — Teknium-style Visual Generation System
+# Lith
 
-A repeatable pipeline for producing Teknium-style announcement graphics, technical infographics, and short motion clips for tech content (full-stack engineering, AI/MLOps, developer tooling).
+A repeatable pipeline for producing announcement graphics, technical
+infographics, and short motion clips for tech content (full-stack
+engineering, AI/MLOps, developer tooling). This document describes
+the seven style families built into the project, the prompt anatomy
+every generation should follow, and how to run the pipeline from a
+brief to a final artifact.
 
-This document is the result of a deep visual analysis of 22 reference posts (20 images + 2 videos) from @Teknium and @sora_biz, with the captions and target audience in mind. Everything below is grounded in what was actually observed in those references, not generic AI-art advice.
+To learn the pipeline by running it, start with
+[Tutorial: your first announcement image](docs/tutorial-first-image.md).
 
 ---
 
-## 1. What the references actually look like
+## 1. The seven style families
 
-The 22 reference posts cluster into **seven clear style families**, not one consistent aesthetic. Teknium's brand is *visual variety inside a strict engineer's signature*: confident typography, deliberate composition, and a willingness to commit to a full aesthetic (manga tape-insert, woodcut, art-deco, neon blueprint, etc.) instead of generic "tech stock." This is the model's most distinctive pattern.
+The project ships seven distinct visual languages for tech/AI announcement
+graphics. Use them in rotation to keep a feed visually interesting without
+becoming chaotic. **Visual variety inside a strict engineer's signature** is
+the brand: confident typography, deliberate composition, and a willingness
+to commit to a full aesthetic instead of generic "tech stock."
 
-### Style family index (with example post IDs)
+### Style family index
 
-| # | Style family | Example refs | Best for |
-|---|---|---|---|
-| A | **Sticker / Whisper-joke infographic** — multi-panel comic, neon colors, oversized text, "POV:" hook | 2088488, 2087947, 2087686, 2086558 | Quick reactions, "we shipped a thing" announcements |
-| B | **Sci-fi brutalist UI** — black tie-fighter panel, big monospaced HUD text, 72px+ HEADLINE, 1-pixel cyan accents | 2087986, 2086568, 2085777, 2085761 | Feature flagships, capability reveals |
-| C | **Vintage technical manual / patent diagram** — sepia paper, fine line-drawing, blueprint numbering, callouts | 2087947, 2087686, 2082339 (one panel) | "How it works" educational posts |
-| D | **Manga tape-insert / risograph** — bright flat color circles, hand-drawn arrows, screen-tone shading, "episode title" kerned text | 2083232 stills, 2082339 (one panel) | Release announcements, "chapter" framing |
-| E | **Editorial screenshot polish** — actual Hermes UI cropped, glossy with purple→blue gradient frames, sticker burst | 2085156 stills, 2084065, 2080502 | Product UI demos |
-| F | **Woodcut / analog engraving** — black on cream, hand-etched lines, skull/cog/sigil iconography | 2081450 (one panel), 2081099 | Sponsor/SaaS satellite announcements, "memo from the team" |
-| G | **Role-log / status dashboard** — glowing list, low-saturation darks, blinking cursors, log entries | 2084065, 2080502, 2080691 | Operational posts, "we hit X" stats |
+| # | Style family | Best for |
+|---|---|---|
+| A | **Sticker / Whisper-joke infographic** — multi-panel comic, neon colors, oversized text, "POV:" hook | Quick reactions, "we shipped a thing" announcements |
+| B | **Sci-fi brutalist UI** — black tie-fighter panel, big monospaced HUD text, 72px+ HEADLINE, 1-pixel cyan accents | Feature flagships, capability reveals |
+| C | **Vintage technical manual / patent diagram** — sepia paper, fine line-drawing, blueprint numbering, callouts | "How it works" educational posts |
+| D | **Manga tape-insert / risograph** — bright flat color circles, hand-drawn arrows, screen-tone shading, "episode title" kerned text | Release announcements, "chapter" framing |
+| E | **Editorial screenshot polish** — actual product UI cropped, glossy with purple→blue gradient frames, sticker burst | Product UI demos |
+| F | **Woodcut / analog engraving** — black on cream, hand-etched lines, skull/cog/sigil iconography | Sponsor/SaaS satellite announcements, "memo from the team" |
+| G | **Role-log / status dashboard** — glowing list, low-saturation darks, blinking cursors, log entries | Operational posts, "we hit X" stats |
 
-Two of the posts are mixed (3+ style families stapled together), which is the *signature move* — see 2082339 (4-panel meme deck) and 2081450 (4-panel comic strip). The takeaway: **don't pick one style, run a 3–4 style rotation per post and let the variety be the brand.**
+You can also produce **multi-family strips** (3–4 panels, each in a different family) for monthly signature posts.
 
-### Brand DNA (what is consistent across all 22)
+### Brand DNA
 
-Even when the styles vary wildly, the underlying signals are constant:
+The signals that stay constant across the seven families:
 
-- **Black or near-black backgrounds dominate** (deep navy `#0A0E1A`, ink black `#000000`, midnight teal `#06141F`). About 70% of refs.
+- **Black or near-black backgrounds dominate** (deep navy `#0A0E1A`, ink black `#000000`, midnight teal `#06141F`). About 70% of outputs.
 - **Maximum 3 accent colors per image**, always in the same family: hot magenta/pink, cyan, acid yellow, or rust orange. Never rainbow.
 - **Oversized typography** — headlines are 8–15% of frame height. Body text is monospaced or chalkboard serif.
 - **One subject, one idea** — every image is a single declarative statement. No infographics with 8 bullet points.
@@ -82,7 +92,7 @@ Even when the styles vary wildly, the underlying signals are constant:
 
 | Model family | When to use | Why |
 |---|---|---|
-| **Grok (xAI Imagine)** — `grok-imagine-image-quality` for stills, `grok-imagine-video-1.5` for video | **Primary workhorse.** 70% of generation. | Best at the "weird style that nobody else can do" — manga tape-insert, art deco, woodcut, neon brutalist. Image-editing is supported (image-to-image) so you can lock a style reference and re-render. Video is image-to-video only and 1–15 s — perfect for the 6–8 s clips Teknium uses. |
+| **Grok (xAI Imagine)** — `grok-imagine-image-quality` for stills, `grok-imagine-video-1.5` for video | **Primary workhorse.** 70% of generation. | Best at the "weird style that nobody else can do" — manga tape-insert, art deco, woodcut, neon brutalist. Image-editing is supported (image-to-image) so you can lock a style reference and re-render. Video is image-to-video only and 1–15 s — perfect for the 6–8 s clips you'll use. |
 | **OpenAI (gpt-image-1 / DALL-E)** | **Polish + integration.** 20% of generation. | Better at coherent typography inside the image (the "Reuters headline" bug than Grok has). Use OpenAI for **editorial screenshot polish** (family E) and any post where readable text inside the image is non-negotiable. |
 | **MiniMax** | **Cheap variation & backgrounds.** 10% of generation. | Use for background-pattern generators, sticker illustrations, and "throwaway" variation rounds. Also good at vector-flat sticker style. |
 
@@ -291,13 +301,13 @@ Every generation — regardless of family — must include these six slots. Fill
 [MOOD]       one sentence: who is this for, what is the feeling
 ```
 
-**Critical rules learned from the references:**
+**Critical rules:**
 
 1. **Headline text inside the image is ALWAYS in the same font as the post's typographic intent** — never let the model invent its own font. Specify "display sans-serif, Helvetica Neue Black, 180px" or "Bodoni, 200px, all caps."
-2. **Most powerful image-text in a Teknium-style post is 1–3 words.** Examples: "The Crew," "New in Hermes," "1Q," "Just /run." Anything longer is a caption, not a headline.
+2. **Most powerful image-text in a tech-AI announcement post is 1–3 words.** Examples: "The Crew," "New in Hermes," "1Q," "Just /run." Anything longer is a caption, not a headline.
 3. **Specifying hex codes beats describing colors.** "Hot magenta" produces different results across runs; "#FF2E88" is stable.
 4. **The decorative element is the brand.** Commit to one signature flourish per image: a lightning bolt, a spark, a magnifying glass, a sunburst, a single ornamental rule. Don't sprinkle five different decorations.
-5. **Asymmetric composition wins.** Teknium almost never centers everything. Offset the headline left, place the icon right, draw a connecting flourish. Off-center is on-brand.
+5. **Asymmetric composition wins.** Centered-everything reads as a stock template; off-center reads as a deliberate poster. Offset the headline left, place the icon right, draw a connecting flourish.
 6. **One image, one idea.** If you have two ideas, make two images. Don't make a 4-panel when two truths would do — except in family D (manga tape-insert) where panels are the whole point.
 
 ---
@@ -351,7 +361,7 @@ Pick the top 1. If the top is < 4 on any axis, run another generation pass with 
 
 ### Step 4 — Post-process
 
-Even after generation, almost every Teknium-style image benefits from a finish pass:
+Even after generation, almost every announcement image benefits from a finish pass:
 
 1. **Typography overlay** — render the headline in your own font (Inter Black, JetBrains Mono Bold, or Cooper Black) on top of the generated image. This gives you pixel-perfect text without model hallucination. Use Pillow or ImageMagick.
 2. **Color grading** — push blacks slightly toward #0A0E1A (not pure black), add a 2px inner border in cyan or magenta, apply a 4% noise/grain layer.
@@ -360,11 +370,11 @@ Even after generation, almost every Teknium-style image benefits from a finish p
 
 ### Step 5 — Video (optional)
 
-For posts that need motion (Teknium uses video ~10% of the time):
+For posts that need motion (recommended for ~10% of posts):
 
 1. Take the final image as the keyframe.
-2. Pass to `grok-imagine-video-1.5` with motion prompt: "subtle parallax, slow zoom in, gentle particle motion, 5 seconds, 1080x1080."
-3. Optionally: a 2-second-loop "GIF-style" effect — repeat the same 4-second clip with a 1-frame offset for a lo-fi texture. Teknium's 2083232 video is exactly this aesthetic.
+2. Pass to `grok-imagine-video-1.5` with a motion prompt: "subtle parallax, slow zoom in, gentle particle motion, 5 seconds, 1080x1080."
+3. Optionally: a 2-second-loop "GIF-style" effect — repeat the same 4-second clip with a 1-frame offset for a lo-fi texture.
 
 ### Step 6 — Approve and post
 
@@ -397,26 +407,103 @@ To keep the feed visually interesting without being chaotic, use this rotation a
 | Sat | F — Woodcut | Gravitas, sponsor, "memo" |
 | Sun | G — Role-log | Quiet operational post, build-in-public |
 
-Once a week, do a **family mash-up** (e.g., 2082339: 4-panel meme deck combining A + C + D + F in one image). This signals "we are deliberately creative" and is the highest-engagement pattern in the references.
+Once a week, do a **family mash-up** (e.g., a 4-panel meme deck combining A + C + D + F in one image). This signals "we are deliberately creative" and is the highest-engagement pattern in the seven families.
 
 ---
 
-## 7. Quick-start (what runs today)
+## 7. Installation
 
-The Python side renders the prompt and overlays typography. The model call
-and candidate selection are made by a Hermes session or by hand.
+The project uses Python 3.10+ standard library only — ImageMagick is the only
+external binary dependency for the typography overlay, and it's already on
+macOS via Homebrew (`brew install imagemagick`). [uv](https://docs.astral.sh/uv/)
+manages the project's virtual environment.
+
+### Requirements
+
+  • Python **3.10 or newer** (the library uses PEP 604 union syntax)
+  • [uv](https://docs.astral.sh/uv/) — `brew install uv` on macOS
+  • ImageMagick 7 (`magick` on `$PATH`) — only needed if you'll overlay literal copy
+
+### Clone and install
 
 ```bash
-# 1. Render the prompt + plan
-PYTHONPATH=. python scripts/generate.py \
+git clone https://github.com/funsaized/lith.git
+cd lith
+uv sync --extra test
+```
+
+`uv sync --extra test` creates `.venv/`, resolves dependencies from
+`pyproject.toml`, and installs the project in editable mode. The editable
+install adds two console-script entry points to the venv:
+
+  • `lith-generate` — render a brief into a prompt and plan
+  • `lith-run` — run the end-to-end driver
+
+### Verify the install
+
+```bash
+.venv/bin/lith-generate \
+  --topic "test" --style B --aspect 16:9 --headline "32 LANGS" --icon "globe"
+```
+
+You should see the rendered prompt printed and exit 0.
+
+### Run the test suite
+
+```bash
+uv run pytest
+```
+
+All tests should pass. The smoke test (`test_smoke_e2e.py`) requires the
+reference artifacts in `outputs/`; if those are missing it will skip
+with a clear message.
+
+---
+
+## 8. Usage
+
+> New here? Work through
+> [Tutorial: your first announcement image](docs/tutorial-first-image.md) —
+> a brief to a finished PNG in five steps, no API key required.
+
+The Python side renders the prompt and overlays typography. The model
+call and candidate selection are made by a Hermes session or by hand.
+
+There are three entry points, all installed by `uv sync` above:
+
+### 1. Render a prompt
+
+From flags:
+
+```bash
+uv run lith-generate \
   --topic "Hermes Agent now supports 32 new languages" \
   --style B --aspect 16:9 --headline "32 LANGS" --icon "globe"
+```
 
-# 2. (Hermes session) call image_generate with the printed prompt.
-#    Save the returned URL.
+From a recipe:
 
-# 3. Overlay literal copy and write final PNG
-PYTHONPATH=. python scripts/run.py --recipe recipes/live_test_recipe.json \
+```bash
+uv run lith-generate \
+  --recipe recipes/live_test_recipe.json \
+  --call --emit-json
+```
+
+`--call --emit-json` emits a JSON envelope you can pipe to an image-generation
+tool. The envelope contains `prompt`, `negative_prompt`, `aspect_ratio`,
+`model`, `n`, `seed`, `output_path`, and `style`.
+
+### 2. (Hermes session) generate the image
+
+Take the rendered prompt and call your image-generation tool of choice
+(`grok-imagine-image-quality` is the recommended default). Save the
+returned image URL.
+
+### 3. Overlay literal copy and write the final PNG
+
+```bash
+uv run lith-run \
+  --recipe recipes/live_test_recipe.json \
   --image-url <url-from-step-2> \
   --line SYSTEM='32 language runtimes online' \
   --line NEW='Full-stack · AI · MLOps' \
@@ -425,24 +512,40 @@ PYTHONPATH=. python scripts/run.py --recipe recipes/live_test_recipe.json \
 
 Output: `outputs/B_brutalist_32_langs.png`.
 
-For local debug or smoke testing, replace `--image-url` with `--image-file <path>`.
+For local debug or smoke testing, replace `--image-url` with
+`--image-file <path>` to feed a local image through the same overlay path.
 
-Dry mode (no image source) prints the rendered plan and exits 0 — safe to run before the model call has been made.
+Dry mode (no `--image-url` and no `--image-file`) prints the rendered plan
+and exits 0 — safe to run before the model call has been made.
+
+### Calling scripts directly
+
+If you'd rather call the scripts by path (for example, from a CI pipeline
+that doesn't activate the venv), do this:
+
+```bash
+PYTHONPATH=. uv run python scripts/generate.py --recipe recipes/<name>.json --call --emit-json
+PYTHONPATH=. uv run python scripts/run.py --recipe recipes/<name>.json --image-url <url> --line ...
+```
+
+`PYTHONPATH=.` is required because the scripts import the library as
+`scripts.pipeline.*`. With the editable install, `lith-generate` and
+`lith-run` work without it.
 
 ---
 
-## 8. Pitfalls learned from the references
+## 9. Pitfalls
 
-1. **Don't let the model pick the style.** Teknium's posts are wildly different from each other because the *creator* is choosing the aesthetic, not the model. If you ask Grok for "a tech announcement graphic," you get generic SaaS stock. Pre-commit to a family.
-2. **Type-in-image is the failure mode.** ~30% of the references have deliberate text inside the image that was clearly composed in post-production (the typography overlay). Don't trust the model to render "Hermes Agent" correctly — overlay it in your own font.
-3. **Hands, faces, and specific tool logos are unreliable.** Teknium's references don't rely on photorealism — they're all illustration or screen-grab. Push generation toward illustration, never toward photoreal people.
+1. **Don't let the model pick the style.** The seven families exist because committed creators pick the aesthetic, not the model. If you ask Grok for "a tech announcement graphic," you get generic SaaS stock. Pre-commit to a family.
+2. **Type-in-image is the failure mode.** Treat any text rendered inside the image by the model as suspect. Don't trust the model to render "Hermes Agent" correctly — overlay it in your own font.
+3. **Hands, faces, and specific tool logos are unreliable.** Push generation toward illustration, never toward photoreal people.
 4. **Avoid the "AI gradient" trap.** If the result has a purple-to-blue diagonal gradient, a 3D-rendered icon, and gloss highlight — you've drifted to generic AI imagery. Reject and re-prompt.
 5. **Variety is the brand.** If the last 5 posts used the same template, the audience will tune out. Rotate families weekly; use the 4-panel mash-up once a month.
-6. **The captions matter as much as the image.** Teknium's captions are short, technical, dry, and forward-looking. No "excited to announce" boilerplate. The image should feel like the visual essay of an engineer, not a launch announcement.
+6. **The captions matter as much as the image.** Captions should be short, technical, dry, and forward-looking. No "excited to announce" boilerplate. The image should feel like the visual essay of an engineer, not a launch announcement.
 
 ---
 
-## 9. Roadmap
+## 10. Roadmap
 
 | Stage | Status | Owner |
 |---|---|---|

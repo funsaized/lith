@@ -1,0 +1,15 @@
+{
+  "name": "live_test_recipe",
+  "description": "Single live generation test for the Sci-fi brutalist UI family. Confirms real Grok output.",
+  "style": "B",
+  "brief": {
+    "topic": "Hermes Agent now supports 32 new languages",
+    "headline": "32 LANGS",
+    "icon": "globe",
+    "aspect": "16:9",
+    "volume": "1"
+  },
+  "expected_output": "outputs/B_brutalist_32_langs.png",
+  "model": "grok-imagine-image-quality",
+  "n": 4
+}

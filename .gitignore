@@ -4,3 +4,7 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 *.egg-info/
+# Sweep artifacts: generated candidates and published images
+candidates/
+outputs/*
+!outputs/B_brutalist_32_langs_raw.jpg

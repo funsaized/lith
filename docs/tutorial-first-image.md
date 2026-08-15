@@ -1,21 +1,20 @@
 # Tutorial: your first announcement image
 
 In this tutorial we will take a one-sentence announcement — *"Hermes Agent now
-supports 32 new languages"* — and turn it into a finished 16:9 PNG with
-pixel-perfect overlay copy, using the pipeline end to end.
+supports 32 new languages"* — and turn it into a finished 16:9 image, using the
+pipeline end to end.
 
 By the end we will have produced this file:
 
 ```
-outputs/B_brutalist_32_langs.png
+outputs/B_brutalist_32_langs.jpg
 ```
 
-A black sci-fi-brutalist panel with a `32 LANGS` headline and three cyan status
-lines under it.
+A black sci-fi-brutalist panel with a `32 LANGS` headline.
 
 We will do it in five moves: install, render a prompt, save a recipe, bring in a
-generated image, and overlay the copy. Every command here is meant to run
-exactly as written.
+generated image, and publish it. Every command here is meant to run exactly as
+written.
 
 ---
 
@@ -27,14 +26,8 @@ From the repository root:
 uv sync --extra test
 ```
 
-We also need ImageMagick for the final step:
-
-```bash
-brew install imagemagick
-magick --version
-```
-
-Now check that the pipeline is wired up:
+That is the whole install — lith is standard library only, with no binaries to
+put on `$PATH`. Now check that the pipeline is wired up:
 
 ```bash
 uv run lith-generate \
@@ -69,12 +62,15 @@ We get back something like:
   pure black #000000 with a 1px cyan grid line at 8% opacity. Headline:
   '32 LANGS' in 180px monospaced all-caps ...
 [negative]    pastel, soft, organic, photographic, gradient backgrounds, ...
-[output]      .../outputs/B_brutalist_32_langs.png
+[output]      .../outputs/B_brutalist_32_langs.<jpg|png|webp>
 ```
 
 Four flags became a full prompt, a negative prompt, and an output path. Notice
 that our headline was placed *inside* the prompt, and that the output filename
 was derived from the style family plus the headline.
+
+The extension is left open. No image exists yet, so neither command guesses a
+format — the file we publish in step 5 is named after the bytes that arrive.
 
 ---
 
@@ -114,12 +110,14 @@ uv run lith-run --recipe recipes/tutorial_first_post.json
 [model]       grok-imagine-image-quality (n=4)
 [prompt]
   Single black panel, 16:9. ...
-[output]      .../outputs/B_brutalist_32_langs.png
+[output]      .../outputs/B_brutalist_32_langs.<jpg|png|webp>
 Next: call image_generate with the prompt, then re-run with --image-url or --image-file.
 ```
 
 With no image supplied, the driver prints its plan and stops. This is the safe
-dry run — we can call it as often as we like while tuning a brief.
+dry run — we can call it as often as we like while tuning a brief. The
+extension is left open because the driver names the file after the bytes the
+model actually returns.
 
 ---
 
@@ -145,58 +143,34 @@ result from this exact prompt, so we'll use it as our generated image:
 outputs/B_brutalist_32_langs_raw.jpg
 ```
 
-Open it. It has the black panel, the grid, the globe silhouette, and a headline
-the model rendered on its own. What it does *not* have is trustworthy small
-text — which is exactly what the last step is for.
+Open it. It has the black panel, the grid, the globe silhouette, and the
+headline the model rendered from our prompt.
 
 ---
 
-## Step 5 — Overlay the copy and finish
+## Step 5 — Publish it
 
-Now we run the driver for real, feeding it that image and the three literal
-lines we want rendered in our own font:
+Now we run the driver for real, handing it that image:
 
 ```bash
 uv run lith-run \
   --recipe recipes/tutorial_first_post.json \
-  --image-file outputs/B_brutalist_32_langs_raw.jpg \
-  --line SYSTEM='32 language runtimes online' \
-  --line NEW='Full-stack · AI · MLOps' \
-  --line READY='One agent. Every stack.'
+  --image-file outputs/B_brutalist_32_langs_raw.jpg
 ```
 
 ```
-[copy]        outputs/B_brutalist_32_langs_raw.jpg -> .../outputs/B_brutalist_32_langs_raw.jpg
-.../outputs/B_brutalist_32_langs.png
-[done]        .../outputs/B_brutalist_32_langs.png
+[copy]        outputs/B_brutalist_32_langs_raw.jpg
+[done]        .../outputs/B_brutalist_32_langs.jpg
 ```
 
-Open `outputs/B_brutalist_32_langs.png`. Each `--line LABEL=copy` became a row:
-the label in red brackets, the copy in cyan, both in Menlo at a fixed size and
-position. Nothing there was hallucinated — every character is ours.
+The driver checked the file's magic bytes, saw JPEG, and published it under the
+name the recipe derives — `.jpg`, because that is what the bytes are. Nothing
+was re-encoded: the published file is byte-identical to the one we fed in. Open
+`outputs/B_brutalist_32_langs.jpg` and it matches.
 
-Compare it against `outputs/B_brutalist_32_langs_verified.png`, the reference
-artifact committed to this repo. They should look the same. We just reproduced
-it.
-
----
-
-## Step 6 — Change something and re-run
-
-Let's confirm we own that copy. Re-run with a different third line:
-
-```bash
-uv run lith-run \
-  --recipe recipes/tutorial_first_post.json \
-  --image-file outputs/B_brutalist_32_langs_raw.jpg \
-  --line SYSTEM='32 language runtimes online' \
-  --line NEW='Full-stack · AI · MLOps' \
-  --line READY='Ship in any language.'
-```
-
-Open the PNG again — the third line changed, and we never re-generated the
-image. Overlay copy is cheap; generation is not. That separation is the point
-of the pipeline.
+Re-run the same command and it lands on the same path again. The output name is
+a function of the recipe, so a second run overwrites the first rather than
+leaving us to guess which file is current.
 
 ---
 
@@ -206,16 +180,17 @@ We turned a sentence into a finished graphic:
 
 1. `lith-generate` rendered our brief into a style-locked prompt.
 2. A recipe file made that brief repeatable.
-3. `lith-run` dry-ran the plan, then ingested a generated image.
-4. `--line` overlaid literal copy in our own font, deterministically.
+3. `lith-run` dry-ran the plan, then validated and published a generated image.
 
 ## Where to go next
 
 - The other six style families and when to use each —
   [README → Style families](../README.md#style-families).
-- Why the families exist, the six prompt slots, and the failure modes to watch
-  for — [About the design language](explanation-design-language.md).
+- Why the families exist, how a prompt is put together, and the failure modes
+  to watch for — [About the design language](explanation-design-language.md).
 - Why the driver never calls a model itself —
   [About the pipeline](explanation-pipeline.md).
-- Full CLI flags for both entry points, including `--image-url`, `--font`, and
+- Writing a dense poster spec — headline, subtitle, sections, diagram, footer —
+  for a family that renders all of it: [README → Recipe format](../README.md#recipe-format).
+- Full CLI flags for both entry points, including `--image-url` and
   `--output-dir` — [README → CLI reference](../README.md#cli-reference).

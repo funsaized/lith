@@ -9,7 +9,6 @@
     "aspect": "16:9",
     "volume": "1"
   },
-  "expected_output": "outputs/B_brutalist_32_langs.png",
   "model": "grok-imagine-image-quality",
   "n": 4
 }

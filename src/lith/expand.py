@@ -1,17 +1,22 @@
 import json
 import subprocess
 
-DEFAULT_PROMPT = """You are a brief-expander for a tech-image generator.
+DEFAULT_PROMPT = """You are a brief-expander for a dense technical poster generator.
 
 Given a topic, produce a JSON object with these fields:
 - topic: one-sentence summary
-- headline: 1-3 words, ALL CAPS, suitable for overlay
+- headline: the poster title, 1-3 words, ALL CAPS
+- subtitle: one line, ALL CAPS, under 8 words
+- sections: 3-5 objects, each {heading, lines}. heading is 2-4 words ALL CAPS,
+  optionally numbered like "01 - THE HUB". lines is 2-4 strings, each under 9
+  words, concrete and specific — real names, numbers, commands — never filler.
+- diagram: one sentence describing a simple labeled diagram, naming every label
+- footer: one short line (site, handle, or date)
 - icon: motif from {gear, lightning, globe, skull, brain, rocket, lock}
-- aspect: 16:9, 4:5, 1:1, or 9:16
-- mood: 1-2 word feel descriptor
+- aspect: 2:3, 3:2, or 1:1 — prefer 2:3 once there are 4+ sections
 
-Pick icon and aspect based on the topic. Use the style B (Sci-fi brutalist UI)
-default unless the topic calls for something else.
+Every word you write is printed verbatim into the image, so write only text you
+want to see rendered. Keep total body copy across all sections to 60-140 words.
 
 Respond with ONLY a JSON code block. No prose outside the block.
 

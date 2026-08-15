@@ -15,6 +15,7 @@ FAMILY_KEYS = {
 REQUIRED_BRIEF_KEYS = {"topic", "headline", "icon", "aspect"}
 
 
+
 @dataclass
 class Recipe:
     name: str
@@ -22,7 +23,6 @@ class Recipe:
     brief: dict
     model: str
     n: int
-    expected_output: str | None
     description: str | None
 
     @property
@@ -43,6 +43,5 @@ def load_recipe(path: pathlib.Path | str) -> Recipe:
         brief=brief,
         model=data.get("model", "grok-imagine-image-quality"),
         n=data.get("n", 4),
-        expected_output=data.get("expected_output"),
         description=data.get("description"),
     )

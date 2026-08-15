@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import argparse
 import pathlib
+import struct
 import sys
 import urllib.parse
 import urllib.request
 
-from lith import load_recipe, output_path, overlay_typography, render_prompt
+from lith import load_recipe, output_path, render_prompt
+from lith.paths import default_output_dir
 from lith.styles import get_family, load_styles
 
 ALLOWED_SCHEMES = ("http", "https")
@@ -24,22 +26,71 @@ PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 
 def _looks_like_image(body: bytes) -> bool:
-    return (
-        body.startswith(JPEG_MAGIC)
-        or body.startswith(PNG_MAGIC)
-        or (body.startswith(b"RIFF") and body[8:12] == b"WEBP")
-    )
+    return _image_ext(body) is not None
 
 
-def parse_line(value: str) -> tuple[str, str]:
-    if "=" not in value:
-        raise argparse.ArgumentTypeError("line must be LABEL=copy")
-    label, copy = value.split("=", 1)
-    label = label.strip()
-    copy = copy.strip()
-    if not label or not copy:
-        raise argparse.ArgumentTypeError("label and copy must both be non-empty")
-    return label, copy
+def _image_size(body: bytes) -> tuple[int, int] | None:
+    """Read pixel dimensions from a PNG or JPEG header.
+
+    ponytail: WebP is not parsed — it has three container variants and no
+    model in the CLI's list returns it. Returns None, and the caller skips
+    the aspect check rather than guessing.
+    """
+    if body.startswith(PNG_MAGIC):
+        return struct.unpack(">II", body[16:24])
+    if not body.startswith(JPEG_MAGIC):
+        return None
+    i = 2
+    while i + 9 < len(body):
+        if body[i] != 0xFF:
+            i += 1
+            continue
+        marker = body[i + 1]
+        # SOF0/1/2/3 and SOF5..15 carry the frame size; skip SOF4/12 (DHT/DAC).
+        if marker in (0xC0, 0xC1, 0xC2, 0xC3) or 0xC5 <= marker <= 0xCF:
+            height, width = struct.unpack(">HH", body[i + 5 : i + 9])
+            return width, height
+        if marker in (0xD8, 0x01) or 0xD0 <= marker <= 0xD7:
+            i += 2
+            continue
+        i += 2 + struct.unpack(">H", body[i + 2 : i + 4])[0]
+    return None
+
+
+def aspect_mismatch(body: bytes, requested: str, tolerance: float = 0.02) -> str | None:
+    """Describe how the delivered frame differs from the one the recipe asked for.
+
+    The model is free to ignore ``aspect_ratio`` — grok-imagine has no 4:5 and
+    silently substitutes another ratio. That matters because the layout the
+    prompt describes was composed for the requested frame, so the substitution
+    has to be visible rather than discovered later in the image.
+    """
+    size = _image_size(body)
+    if size is None or ":" not in requested:
+        return None
+    try:
+        num, den = (float(part) for part in requested.split(":", 1))
+    except ValueError:
+        return None
+    if not den or not num:
+        return None
+    width, height = size
+    if not height:
+        return None
+    want, got = num / den, width / height
+    if abs(got - want) <= tolerance * want:
+        return None
+    return f"requested {requested} ({want:.3f}), received {width}x{height} ({got:.3f})"
+
+
+def _image_ext(body: bytes) -> str | None:
+    if body.startswith(JPEG_MAGIC):
+        return ".jpg"
+    if body.startswith(PNG_MAGIC):
+        return ".png"
+    if body.startswith(b"RIFF") and body[8:12] == b"WEBP":
+        return ".webp"
+    return None
 
 
 def download(url: str, dst: pathlib.Path) -> pathlib.Path:
@@ -99,7 +150,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run the image pipeline end-to-end.")
     parser.add_argument("--recipe", type=pathlib.Path, required=True)
     parser.add_argument(
-        "--output-dir", type=pathlib.Path, default=pathlib.Path.cwd() / "outputs"
+        "--output-dir",
+        type=pathlib.Path,
+        help="Directory for the published file. Defaults beside the recipe.",
     )
     image_source = parser.add_mutually_exclusive_group()
     image_source.add_argument(
@@ -108,34 +161,29 @@ def main() -> int:
     image_source.add_argument(
         "--image-file", type=pathlib.Path, help="Local raw generated image path"
     )
-    parser.add_argument("--font", type=pathlib.Path)
-    parser.add_argument(
-        "--line",
-        type=parse_line,
-        action="append",
-        default=[],
-        help="LABEL=copy line to overlay. Pass multiple times.",
-    )
     args = parser.parse_args()
 
     recipe = load_recipe(args.recipe)
+    output_dir = args.output_dir or default_output_dir(args.recipe)
     styles = load_styles()
     style = get_family(styles, recipe.style)
-    rendered = render_prompt(style, recipe.brief)
-    out_final = output_path(
-        args.output_dir, recipe.family_key, recipe.brief["headline"], ".png"
-    )
+    rendered = render_prompt(style, recipe.brief, model=recipe.model)
+    # Extension is unknown until the bytes arrive: grok returns JPEG,
+    # gpt-image-1 returns PNG. Name the artifact after what actually lands.
+    stem = output_path(output_dir, recipe.family_key, recipe.brief["headline"], "")
 
     if not args.image_url and not args.image_file:
         print(f"[recipe]      {args.recipe}", flush=True)
         print(f"[family]      {recipe.family_key}", flush=True)
         print(f"[style]       {rendered['style']}", flush=True)
         print(f"[aspect]      {rendered['aspect_ratio']}", flush=True)
+        if rendered["aspect_note"]:
+            print(f"[warn]        {rendered['aspect_note']}", flush=True)
         print(f"[model]       {recipe.model} (n={recipe.n})", flush=True)
         print("[prompt]", flush=True)
         for line in rendered["prompt"].splitlines():
             print(f"  {line}", flush=True)
-        print(f"[output]      {out_final}", flush=True)
+        print(f"[output]      {stem}.<jpg|png|webp>", flush=True)
         print(
             "Next: call image_generate with the prompt, then re-run with "
             "--image-url or --image-file.",
@@ -143,28 +191,20 @@ def main() -> int:
         )
         return 0
 
-    raw = output_path(
-        args.output_dir, recipe.family_key, recipe.brief["headline"], "_raw.jpg"
-    )
-
+    staged = stem.with_suffix(".part")
     if args.image_url:
-        print(f"[download]    {args.image_url} -> {raw}", flush=True)
-        download(args.image_url, raw)
+        print(f"[download]    {args.image_url}", flush=True)
+        download(args.image_url, staged)
     else:
-        print(f"[copy]        {args.image_file} -> {raw}", flush=True)
-        load_local(args.image_file, raw)
+        print(f"[copy]        {args.image_file}", flush=True)
+        load_local(args.image_file, staged)
 
-    if not args.line:
-        print(
-            "[warn]        no --line supplied; writing raw only (no overlay)",
-            flush=True,
-        )
-        completed = raw
-    else:
-        overlay_kwargs = {"font": args.font} if args.font else {}
-        overlay_typography(raw, out_final, lines=args.line, **overlay_kwargs)
-        completed = out_final
-
+    body = staged.read_bytes()
+    drift = aspect_mismatch(body, rendered["aspect_ratio"])
+    if drift:
+        print(f"[warn]        aspect: {drift}", flush=True)
+    completed = stem.with_suffix(_image_ext(body[:12]))
+    staged.replace(completed)
     print(f"[done]        {completed}", flush=True)
     return 0
 

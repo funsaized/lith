@@ -1,15 +1,17 @@
 # Lith
 
-Lith renders a short brief into a style-locked image-generation prompt, and
-overlays literal copy onto the image that comes back. It is a prompt renderer
-and a typography compositor with a recipe format between them.
+Lith renders a short brief into a style-locked image-generation prompt, then
+validates and publishes the image that comes back. It is a prompt renderer with
+a recipe format in front of it and a publishing guard behind it.
 
 **What lith is.** Seven fixed visual style families in
 [`styles.json`](src/lith/data/styles.json), each a prompt template with a few
 substitution slots. A JSON recipe format that makes a brief re-runnable. A
-deterministic ImageMagick pass that paints your literal copy over the image so
-no shipped character was hallucinated. Two console scripts and a seven-function
-Python API. Standard library only — the sole external binary is `magick`.
+poster spec — headline, subtitle, sections, diagram, footer — serialized into
+the prompt as a literal copy block the model is ordered to reproduce character
+for character, so no shipped word was invented by the model. Two console
+scripts and a six-function Python API. Standard library only, no external
+binaries.
 
 **What lith is not.** It is not an image generator: no API keys, no vendor SDK,
 no model call anywhere in the codebase. `lith-generate --call` emits a JSON
@@ -21,7 +23,7 @@ into a brief. Those stages are people, and lith is explicit about the handoff:
 
 New here? Work through
 [Tutorial: your first announcement image](docs/tutorial-first-image.md) — a
-brief to a finished PNG in five steps, no API key required.
+brief to a finished image in five steps, no API key required.
 
 Why the pipeline stops where it does:
 [About the pipeline](docs/explanation-pipeline.md). Why there are seven
@@ -36,7 +38,7 @@ and [how to install it](#install-the-hermes-skill).
 
 - [Install](#install)
 - [Install the Hermes skill](#install-the-hermes-skill)
-- [CLI reference](#cli-reference) — [`lith-generate`](#lith-generate) · [`lith-run`](#lith-run) · [`overlay_text.py`](#overlay_textpy)
+- [CLI reference](#cli-reference) — [`lith-generate`](#lith-generate) · [`lith-run`](#lith-run)
 - [Python API](#python-api) — full detail in [the API reference](docs/reference-python-api.md)
 - [Recipe format](#recipe-format)
 - [Style families](#style-families)
@@ -55,7 +57,6 @@ Requirements:
 |---|---|
 | Python | 3.10 or newer (the library uses PEP 604 union syntax) |
 | [uv](https://docs.astral.sh/uv/) | `brew install uv` on macOS |
-| ImageMagick 7 | `magick` on `$PATH`; needed only for the overlay pass |
 
 As a tool:
 
@@ -157,17 +158,19 @@ restart; copy installs need the `cp` re-run. To uninstall,
 
 ### What the skill instructs
 
-Worth knowing before you hand a session the keys — the file itself is 90 lines
-and worth reading:
+Worth knowing before you hand a session the keys — the file is short and worth
+reading in full:
 
 - Render the envelope with `lith-generate --recipe ... --call --emit-json`,
   call an image model with its fields, then finish through `lith-run`.
 - Use absolute paths for recipes and images.
 - Ask the user to pick when candidate selection is subjective.
 - **Never publish, post, or upload without separate authorization.**
+- Write the full poster spec into the brief, because every word in it is
+  printed into the image verbatim.
 
-The skill declares `platforms: [linux, macos]`. The overlay defaults point at
-`/System/Library/Fonts/Menlo.ttc`, so a Linux session must pass `--font`.
+The skill declares `platforms: [linux, macos]` and needs nothing beyond a
+Python install on either.
 
 ---
 
@@ -189,12 +192,12 @@ lith-generate --topic TEXT --style {A..G} --headline TEXT [options]
 | `--topic` | str | — | One-sentence brief. Required without `--recipe`. |
 | `--style` | `A`–`G` | — | Style family. Required without `--recipe`. |
 | `--headline` | str | — | In-image headline. Required without `--recipe`. |
-| `--aspect` | `16:9` `4:5` `1:1` `9:16` | family default | Aspect ratio. |
+| `--aspect` | `16:9` `3:2` `1:1` `2:3` `3:4` `9:16` | family default | Aspect ratio. Warns on stderr if the chosen model cannot produce it. |
 | `--icon` | str | `gear` | Motif substituted into `{icon}`. |
 | `--n` | int | `4` | Candidate count recorded in the envelope. |
 | `--seed` | int | `None` | Seed recorded in the envelope. |
 | `--model` | `grok-imagine-image-quality` `grok-imagine-image` `gpt-image-1` `minimax-image` | `grok-imagine-image-quality` | Model recorded in the envelope. |
-| `--out` | path | derived | Output path recorded in the envelope. |
+| `--out` | path | derived stem | Output path recorded in the envelope, verbatim. Without it, the derived value carries no extension. |
 | `--call` | flag | off | Emit the envelope instead of the summary. |
 | `--emit-json` | flag | off | With `--call`, emit JSON rather than `key=value` lines. |
 
@@ -202,7 +205,8 @@ With `--recipe`, the recipe's `model` and `n` win and `--model` / `--n` are
 ignored; `--seed`, `--out`, `--call`, and `--emit-json` still apply.
 
 Envelope fields, in order: `prompt`, `negative_prompt`, `aspect_ratio`,
-`model`, `n`, `seed`, `output_path`, `style`.
+`model`, `n`, `seed`, `output_path`, `style`, `aspect_note`.
+`aspect_note` is `null` unless the model forced a different ratio.
 
 ```bash
 uv run lith-generate --recipe recipes/live_test_recipe.json --call --emit-json
@@ -213,8 +217,8 @@ Exit codes: `0` on success, `2` on an argparse error (including a missing
 
 ### `lith-run`
 
-Ingests a generated image and overlays literal copy. With no image source, it
-prints its plan and exits.
+Validates a generated image and publishes it under the recipe's deterministic
+path. With no image source, it prints its plan and exits.
 
 ```
 lith-run --recipe PATH [--image-url URL | --image-file PATH] [options]
@@ -225,17 +229,14 @@ lith-run --recipe PATH [--image-url URL | --image-file PATH] [options]
 | `--recipe` | path | **required** | Recipe file. |
 | `--image-url` | url | — | HTTP(S) URL of the generated image. Mutually exclusive with `--image-file`. |
 | `--image-file` | path | — | Local generated image. Mutually exclusive with `--image-url`. |
-| `--line` | `LABEL=copy` | `[]` | Overlay line; repeatable. Label and copy must both be non-empty. |
-| `--font` | path | `/System/Library/Fonts/Menlo.ttc` | Font passed to the overlay. |
-| `--output-dir` | path | `./outputs` | Directory for the raw and final files. |
+| `--output-dir` | path | beside the recipe | Directory for the published file. Defaults to the recipe's sibling `outputs/`, not the cwd. |
 
-Three modes:
+Two modes:
 
 | Condition | Behavior |
 |---|---|
 | No `--image-url` and no `--image-file` | Prints recipe, family, style, aspect, model, prompt, and output path; exits 0. Nothing is written. |
-| Image source, no `--line` | Writes the raw image only, warns `[warn] no --line supplied`; exits 0. |
-| Image source and `--line` | Writes the raw image, overlays copy, writes the final PNG; exits 0. |
+| Image source | Writes the image to the recipe's output path, extension sniffed from the bytes; exits 0. |
 
 `--image-url` fetches under four guards: HTTP(S) schemes only, re-checked after
 redirects; 30-second timeout; 25 MB ceiling enforced while streaming; and a
@@ -243,54 +244,25 @@ magic-byte check for JPEG, PNG, or WebP before any write. `--image-file` skips
 the network guards, keeps the magic-byte check, and no-ops the copy if source
 and destination resolve to the same path.
 
+Bytes are staged as `<stem>.part` and renamed once the format is known, because
+the extension cannot be chosen before the bytes are inspected. The published
+extension follows the image, not the recipe: Grok returns JPEG, `gpt-image-1`
+returns PNG. Nothing is re-encoded.
+
 ```bash
 uv run lith-run \
   --recipe recipes/live_test_recipe.json \
-  --image-file outputs/B_brutalist_32_langs_raw.jpg \
-  --line SYSTEM='32 language runtimes online' \
-  --line NEW='Full-stack · AI · MLOps' \
-  --line READY='One agent. Every stack.'
+  --image-file outputs/B_brutalist_32_langs_raw.jpg
 ```
 
-Exit codes: `0` on success, `2` on an argparse error. A failed download, a
-non-image body, or a nonzero `magick` exit raises and terminates with a
-traceback.
-
-### `overlay_text.py`
-
-The overlay implementation, bundled inside the package at
-`src/lith/overlay_text.py`. `lith-run` and `overlay_typography` invoke it as a
-subprocess and forward only `--input`, `--output`, `--line`, and `--font`. Run
-it directly to reach the layout constants.
-
-| Flag | Type | Default |
-|---|---|---|
-| `--input` | path | **required** |
-| `--output` | path | **required** |
-| `--line` | `LABEL=copy` | **required**, repeatable |
-| `--font` | path | `/System/Library/Fonts/Menlo.ttc` |
-| `--point-size` | int | `25` |
-| `--x` | int | `150` — label column |
-| `--body-x` | int | `295` — copy column |
-| `--y` | int | `405` — first baseline |
-| `--line-height` | int | `40` |
-| `--label-color` | hex | `#FF3030` |
-| `--body-color` | hex | `#00E5FF` |
-| `--mask` | `x1,y1 x2,y2` | `120,365 1165,515` |
-
-Behavior: fills `--mask` with black, then draws each line as `[LABEL]` at
-(`--x`, `--y` + *i* × `--line-height`) in `--label-color` and the copy at
-(`--body-x`, same *y*) in `--body-color`.
-
-The position defaults are tuned for a 1280×720 family-B panel and are wrong for
-other aspects. Exit codes: `0` on success, `2` if `magick`, the input, or the
-font is missing.
+Exit codes: `0` on success, `2` on an argparse error. A failed download or a
+non-image body raises and terminates with a traceback.
 
 ---
 
 ## Python API
 
-`from lith import ...` exposes seven names. Full signatures, return shapes,
+`from lith import ...` exposes six names. Full signatures, return shapes,
 exception tables, and internals for every module —
 **[Python API and implementation reference](docs/reference-python-api.md)**.
 
@@ -298,7 +270,6 @@ exception tables, and internals for every module —
 |---|---|---|
 | `render_prompt` | `(style, brief=None) -> dict[str, str]` | Substitute a brief into a family template. Returns `prompt`, `negative_prompt`, `aspect_ratio`, `style`. |
 | `load_recipe` | `(path) -> Recipe` | Read and validate a recipe file. |
-| `overlay_typography` | `(src, dst, lines, font=None) -> Path` | Paint literal copy onto an image via ImageMagick. |
 | `expand_brief` | `(topic, llm_cmd, ...) -> dict` | Expand a topic into a brief using an LLM command you supply. |
 | `parse_brief_response` | `(text) -> dict` | First decodable JSON object in an LLM reply. |
 | `output_path` | `(out_dir, family_key, headline, ext) -> Path` | Derive an artifact path. |
@@ -330,17 +301,27 @@ A recipe is a JSON object. See
 | `description` | string | no | `null` | Free text; not used at runtime. |
 | `model` | string | no | `grok-imagine-image-quality` | Recorded in the envelope. |
 | `n` | int | no | `4` | Candidate count recorded in the envelope. |
-| `expected_output` | string | no | `null` | Reference artifact path; read by the smoke test, not the CLIs. |
 
 `brief` keys:
 
 | Key | Required | Used for |
 |---|---|---|
 | `topic` | yes | Validation and human context; not substituted into any template. |
-| `headline` | yes | `{headline}` slot **and** the output filename. |
+| `headline` | yes | The spec's `TITLE:` line **and** the output filename. |
 | `icon` | yes | `{icon}` slot. |
 | `aspect` | yes | `aspect_ratio` in the envelope. |
 | `volume` | no | `{volume}` slot; family C only. Defaults to `"1"`. |
+| `title` | no | Overrides `headline` in the spec's `TITLE:` line only; the filename still uses `headline`. |
+| `subtitle` | no | Spec `SUBTITLE:` line, and a subtitle zone in `{layout}`. |
+| `sections` | no | List of `{heading, lines}` objects — the section panels. `heading` is required on each; `lines` is 2–4 strings. |
+| `diagram` | no | One sentence naming every label in a simple diagram; adds a diagram panel. |
+| `footer` | no | One short line under a horizontal rule. |
+| `base_color` | no | Overrides the family palette's `background` in `{base_color}`. |
+| `accent` | no | Overrides the family palette's `accent` in `{accent}`. |
+
+All seven families carry `{spec}` and `{layout}`, so spec keys reach every one
+of them. A brief with no `sections` degrades to a title-only spec, which is
+what every pre-spec recipe produces.
 
 ```json
 {
@@ -365,15 +346,20 @@ A recipe is a JSON object. See
 Seven families, defined in [`src/lith/data/styles.json`](src/lith/data/styles.json).
 That file is authoritative for prompt text; this table is the index.
 
-| Letter | Key | Name | Default aspect | Template slots | Best for |
+**Every family carries `{spec}` and `{layout}`.** The copy path is identical
+across all seven — the brief supplies every word, the template supplies only
+how those words are drawn. "Extra slots" below lists what a family uses
+*beyond* those two.
+
+| Letter | Key | Name | Default aspect | Extra slots | Best for |
 |---|---|---|---|---|---|
-| A | `A_sticker` | Sticker / whisper-joke infographic | 16:9 | `{headline}` `{accent}` | Quick reactions, ship announcements, POV jokes |
-| B | `B_brutalist` | Sci-fi brutalist UI | 16:9 | `{headline}` `{icon}` | Feature flagships, capability reveals |
-| C | `C_patent` | Vintage technical manual / patent diagram | 4:5 | `{headline}` `{icon}` `{volume}` | How-it-works posts, educational threads |
-| D | `D_manga` | Manga tape-insert / risograph | 1:1 | `{headline}` `{base_color}` | Release announcements, chapter framing |
-| E | `E_screenshot` | Editorial screenshot polish | 16:9 | `{headline}` | UI demos, product launches |
-| F | `F_woodcut` | Woodcut / analog engraving | 4:5 | `{headline}` `{icon}` | Sponsor announcements, team memos |
-| G | `G_log` | Role-log / status dashboard | 16:9 | `{headline}` | Operational posts, build-in-public stats |
+| A | `A_sticker` | Sticker / whisper-joke infographic | 16:9 | `{accent}` | Quick reactions, ship announcements, POV jokes |
+| B | `B_brutalist` | Sci-fi brutalist UI | 16:9 | `{icon}` | Feature flagships, capability reveals |
+| C | `C_patent` | Vintage technical manual / patent diagram | 2:3 | `{icon}` `{volume}` | How-it-works posts, educational threads |
+| D | `D_manga` | Manga tape-insert / risograph | 2:3 | `{base_color}` | Release announcements, chapter framing |
+| E | `E_screenshot` | Editorial screenshot polish | 16:9 | — | UI demos, product launches |
+| F | `F_woodcut` | Woodcut / analog engraving | 2:3 | `{icon}` | Sponsor announcements, team memos |
+| G | `G_log` | Role-log / status dashboard | 16:9 | `{icon}` | Operational posts, build-in-public stats |
 
 Slot resolution, per `render_prompt`:
 
@@ -382,13 +368,17 @@ Slot resolution, per `render_prompt`:
 | `{headline}` | `brief["headline"]` | `"NEW"` |
 | `{icon}` | `brief["icon"]` | `"gear"` |
 | `{volume}` | `brief["volume"]` | `"1"` |
-| `{base_color}` | `palette["background"]` | `"#000000"` |
-| `{accent}` | `palette["accent"]` | `"#00E5FF"` |
+| `{base_color}` | `brief["base_color"]`, else `palette["background"]` | `"#000000"` |
+| `{accent}` | `brief["accent"]`, else `palette["accent"]` | `"#00E5FF"` |
+| `{spec}` | the brief's copy fields, serialized | title-only block |
+| `{layout}` | the zones the brief has copy for | title zone alone |
 
 A palette field holding a list is joined with `" | "` — for example
 `A_sticker`'s four accents render as
 `#FF2E88 | #00E5FF | #F2FF00 | #FF6B35`. An empty list falls back to the
-default.
+default. The brief wins over the palette, so a family listing three
+backgrounds needs the recipe to name one, or the prompt asks for a "single
+flat background" and then lists three colors.
 
 Why the families exist, what they have in common, and how to rotate them:
 [About the design language](docs/explanation-design-language.md).
@@ -419,7 +409,10 @@ Family object:
 `rules` — `max_accent_colors`, `max_words_in_image`,
 `always_oversize_headline`, `always_one_decorative_motif`,
 `prefer_asymmetric_composition`, `always_one_idea_per_image` — are an authoring
-checklist. No code reads them.
+checklist. No code reads them. They describe the sparse families (A, B, C, E,
+F, G); a spec-driven family carrying `{spec}` and `{layout}` deliberately
+overrides `max_words_in_image` and `always_one_idea_per_image`, since a dense
+poster is many ideas and a hundred-odd words on purpose.
 
 Pass an alternate file with `load_styles(path)`; the CLIs always use the
 bundled copy.
@@ -428,21 +421,23 @@ bundled copy.
 
 ## Output paths
 
-Both filenames derive from `output_path(dir, family_key, headline, ext)`:
+The filename derives from `output_path(dir, family_key, headline, ext)`:
 
 | File | Pattern | Example |
 |---|---|---|
-| Raw (ingested image) | `{family_key}_{slug(headline)}_raw.jpg` | `outputs/B_brutalist_32_langs_raw.jpg` |
-| Final (after overlay) | `{family_key}_{slug(headline)}.png` | `outputs/B_brutalist_32_langs.png` |
+| Published image | `{family_key}_{slug(headline)}{ext}` | `outputs/B_brutalist_32_langs.jpg` |
 
-The directory is `--output-dir` for `lith-run` (default `./outputs`) and
-`./outputs` for `lith-generate`. The raw file always carries a `.jpg`
-extension regardless of the source format, and both files are overwritten
-without prompting when a recipe is re-run.
+The directory is `--output-dir` for `lith-run`, defaulting to the recipe's
+sibling `outputs/`; `lith-generate` derives the same directory from `--recipe`,
+and falls back to `./outputs` in flag mode where there is no recipe to anchor to. `lith-run` sniffs `ext` from the image bytes —
+`.jpg`, `.png`, or `.webp`. `lith-generate` has no bytes yet, so a path it
+derives is a bare stem and both commands print it the same way, as
+`{stem}.<jpg|png|webp>`. An explicit `--out` is recorded verbatim instead. The
+file is overwritten without prompting when a recipe is re-run.
 
-`outputs/B_brutalist_32_langs_verified.png` is a committed reference artifact —
-real Grok output for `recipes/live_test_recipe.json`, overlaid — used by the
-tutorial and the smoke test.
+`outputs/B_brutalist_32_langs_raw.jpg` is a committed reference artifact — real
+Grok output for `recipes/live_test_recipe.json` — used by the tutorial and the
+smoke test.
 
 ---
 
@@ -452,9 +447,9 @@ tutorial and the smoke test.
 uv run pytest
 ```
 
-Six modules under `tests/`, covering prompt rendering, both CLIs, the brief
-expander, typography, and an end-to-end smoke test. The smoke test skips with a
-clear message when the reference artifacts in `outputs/` are absent.
+Five modules under `tests/`, covering prompt rendering, both CLIs, the brief
+expander, and an end-to-end smoke test. The smoke test skips with a clear
+message when the reference artifact in `outputs/` is absent.
 
 ---
 
@@ -464,12 +459,12 @@ clear message when the reference artifacts in `outputs/` are absent.
 |---|---|
 | Prompt rendering from `styles.json` | done |
 | Recipe loader and dry-run driver | done |
-| ImageMagick typography overlay | done |
+| Validate-and-publish driver | done |
+| Spec-driven poster copy (`{spec}` / `{layout}`) | done, all seven families |
 | Topic expansion (`expand_brief`) | done, library only — no CLI |
 | Hermes `SKILL.md` wrapper | done, shipped in `skills/`; [installed manually](#install-the-hermes-skill) |
 | Image-model call from the driver | not built — by design; see [About the pipeline](docs/explanation-pipeline.md#why-the-driver-never-calls-a-model) |
 | Candidate scoring | not built |
-| Aspect-aware overlay masks | not built |
 | Video augmentation | out of scope; [rationale](docs/explanation-pipeline.md#deliberate-omissions) |
 | Post → brief ingestion | out of scope; [rationale](docs/explanation-pipeline.md#deliberate-omissions) |
 | Calendar rotation tool | not built |

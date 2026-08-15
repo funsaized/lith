@@ -64,3 +64,43 @@ def test_download_rejects_redirect_to_disallowed_scheme(tmp_path):
     with patch("urllib.request.urlopen", return_value=fake):
         with pytest.raises(ValueError, match="refusing redirected scheme 'ftp'"):
             download("https://example.com/image.jpg", tmp_path / "x.jpg")
+
+
+def test_publishes_under_the_recipe_name(tmp_path):
+    """The model's image is the deliverable; no staging file survives."""
+    src = tmp_path / "candidate.png"
+    src.write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 64)
+    out = tmp_path / "out"
+    result = subprocess.run(
+        [sys.executable, "-m", "lith.cli.run",
+         "--recipe", str(REPO / "recipes" / "live_test_recipe.json"),
+         "--output-dir", str(out), "--image-file", str(src)],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert (out / "B_brutalist_32_langs.png").is_file()
+    assert not list(out.glob("*.part"))
+
+
+def test_image_size_reads_jpeg_and_png_headers():
+    from lith.cli.run import _image_size
+
+    png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8 + (1024).to_bytes(4, "big") + (1536).to_bytes(4, "big")
+    assert _image_size(png) == (1024, 1536)
+    # Minimal JPEG: SOI, then an SOF0 declaring 720x1280.
+    jpeg = b"\xff\xd8\xff" + b"\xe0\x00\x02" + b"\xff\xc0\x00\x11\x08" + (1280).to_bytes(2, "big") + (720).to_bytes(2, "big") + b"\x00" * 8
+    assert _image_size(jpeg) == (720, 1280)
+    assert _image_size(b"RIFF____WEBP") is None  # unparsed on purpose
+
+
+def test_aspect_mismatch_flags_a_silent_substitution():
+    from lith.cli.run import aspect_mismatch
+
+    portrait = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8 + (720).to_bytes(4, "big") + (1280).to_bytes(4, "big")
+    # 720x1280 is 9:16. Asking for 2:3 and getting this is the real defect.
+    assert aspect_mismatch(portrait, "2:3")
+    assert aspect_mismatch(portrait, "9:16") is None
+    # Unparseable or absent requests never raise.
+    assert aspect_mismatch(b"RIFF____WEBP", "2:3") is None
+    assert aspect_mismatch(portrait, "auto") is None
+    assert aspect_mismatch(portrait, "0:0") is None

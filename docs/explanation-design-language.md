@@ -39,7 +39,8 @@ strict signature is the point. What stays constant across all seven:
 - **Oversized typography.** Headlines run 8–15% of frame height. Body copy is
   monospaced or a chalkboard serif.
 - **One subject, one idea.** Every image is a single declarative statement, not
-  an eight-bullet infographic. Two ideas means two images.
+  an eight-bullet infographic. Two ideas means two images — except in the
+  spec-driven families, where the dense poster is the format.
 - **Posters, not slides.** Readable from a thumbnail, designed to be re-pinned.
 - **Hand-drawn energy.** Even the most polished family carries an asymmetric
   composition, an off-center alignment, or one decorative flourish.
@@ -50,7 +51,10 @@ strict signature is the point. What stays constant across all seven:
 
 Those last constraints appear in `styles.json` under `rules` — not because
 anything enforces them at runtime, but because they are the checklist a human
-scores candidates against.
+scores candidates against. The checklist describes the sparse families: A, B,
+C, E, F, G. A family whose template carries the `{spec}` and `{layout}` slots
+overrides `max_words_in_image` and `always_one_idea_per_image` on purpose, and
+is scored against its spec instead.
 
 ## The seven families
 
@@ -68,8 +72,7 @@ sticker sheet wants variety within the frame.
 **B — Sci-fi brutalist UI.** A single black panel, a 180px monospaced headline,
 a 1px cyan grid, one silhouette at 20% opacity. Mission control. Best for
 feature flagships and capability reveals, and the most reliably legible of the
-seven at thumbnail size. This is the family the bundled recipe and the overlay
-defaults are tuned for.
+seven at thumbnail size. This is the family the bundled recipe is written for.
 
 **C — Vintage technical manual / patent diagram.** Sepia paper, fine ink lines,
 double-rule border, patent-style "FIG. 1" callouts. Best for "how it works"
@@ -78,8 +81,12 @@ engineered. The only family that uses the `{volume}` slot.
 
 **D — Manga tape-insert / risograph.** One bold flat ground, thick manga
 outlines, screen-tone shading, registration offset. Best for release
-announcements and "chapter" framing. The only family where panels are the
-point — the one-idea-per-image rule bends here and nowhere else.
+announcements, "chapter" framing, and anything that needs to say four things at
+once. The only family where panels are the point, and so far the only one
+carrying the `{spec}` and `{layout}` slots: the brief supplies the full copy —
+sections, headings, body lines, a diagram, a footer — and the template orders
+the model to render it verbatim. The one-idea-per-image rule bends here and
+nowhere else, which is exactly why it is the family with a spec.
 
 **E — Editorial screenshot polish.** A real product screenshot on a deep purple
 gradient with a radial glow. Best for UI demos. It is also the family that
@@ -109,9 +116,14 @@ Every family template covers the same six slots, in this order:
 [PALETTE]    2-4 colors with hex codes; one accent per image
 [TYPO]       font + size + weight + color, headline vs body distinction
 [ICON]       one or two named motifs/glyphs (lightning, skull, gear)
-[COPY]       any literal text that must appear in the image (use sparingly)
+[COPY]       every literal word that must appear in the image, verbatim
 [MOOD]       one sentence: who is this for, what is the feeling
 ```
+
+`[COPY]` is the slot the two family kinds diverge on. In a sparse family it is
+the headline and nothing else. In a spec-driven family it is the whole
+serialized block — title, sections, diagram, footer — followed by the standing
+order to reproduce it character for character.
 
 They're prose in `prompt_template` rather than labeled sections, but the order
 holds across all seven, and a new family should follow it. The rules behind the
@@ -120,9 +132,12 @@ order:
 1. **Never let the model choose a font.** Say "display sans-serif, Helvetica
    Neue Black, 180px" or "Bodoni, 200px, all caps." An unspecified font is a
    different font every run.
-2. **In-image text should be one to three words.** "The Crew." "New in Hermes."
-   "1Q." "Just /run." Anything longer is a caption, and captions belong in the
-   post, not the picture. `rules.max_words_in_image` records this as 3.
+2. **In a sparse family, in-image text should be one to three words.** "The
+   Crew." "New in Hermes." "1Q." "Just /run." Anything longer is a caption, and
+   captions belong in the post, not the picture. `rules.max_words_in_image`
+   records this as 3, and it holds for A, B, C, E, F, and G. A spec-driven
+   family throws the limit out — D's `[COPY]` block runs 60 to 140 words — but
+   pays for it by writing every one of those words down in the brief first.
 3. **Hex codes beat color names.** "Hot magenta" varies run to run; `#FF2E88`
    does not.
 4. **One decorative flourish per image.** A lightning bolt, a spark, a
@@ -130,7 +145,7 @@ order:
    reads as a signature.
 5. **Asymmetry wins.** Centered-everything reads as a stock template. Offset
    the headline, place the icon opposite, connect them with a flourish.
-6. **One image, one idea** — except family D.
+6. **One image, one idea** — except family D, which trades the rule for a spec.
 
 ## Rotating families
 
@@ -157,9 +172,12 @@ The recurring ways output goes wrong, in rough order of how often they bite:
 
 **Model-rendered text is the primary failure mode.** Treat every character the
 model draws as suspect. It will produce convincing gibberish, near-misses on
-product names, and letterforms that fall apart at small sizes. This is the
-entire reason `overlay_typography` exists — see
-[About the pipeline](explanation-pipeline.md#why-typography-is-a-separate-pass).
+product names, and letterforms that fall apart at small sizes. This is why the
+copy is written into the brief and the model is ordered to reproduce it
+verbatim rather than invent it — see
+[About the pipeline](explanation-pipeline.md#why-the-copy-is-specified-never-improvised).
+The order narrows the failure to misspelling, so read every line of a candidate
+against the spec before shipping it.
 
 **The AI-gradient trap.** Purple-to-blue diagonal gradient, 3D-rendered icon,
 gloss highlight. If the result has all three, generation drifted to the

@@ -18,12 +18,11 @@ wherever a signature says `path`.
 - [Package layout](#package-layout)
 - [`lith` — public API](#lith--public-api)
 - [`lith.render`](#lithrender)
+- [`lith.aspect`](#lithaspect)
 - [`lith.recipe`](#lithrecipe)
 - [`lith.styles`](#lithstyles)
 - [`lith.paths`](#lithpaths)
-- [`lith.typography`](#lithtypography)
 - [`lith.expand`](#lithexpand)
-- [`lith.overlay_text`](#lithoverlay_text)
 - [`lith.cli.generate`](#lithcligenerate)
 - [`lith.cli.run`](#lithclirun)
 - [Exception summary](#exception-summary)
@@ -35,14 +34,13 @@ wherever a signature says `path`.
 
 ```
 src/lith/
-├── __init__.py          public API — re-exports seven names
-├── render.py            prompt-template substitution
+├── __init__.py          public API — re-exports six names
+├── render.py            prompt-template substitution, spec and layout blocks
+├── aspect.py            aspect resolution and per-model capability
 ├── recipe.py            Recipe dataclass, family keys, recipe loading
 ├── styles.py            styles.json access
 ├── paths.py             slug and output-path derivation
-├── typography.py        overlay_text.py subprocess wrapper
 ├── expand.py            LLM-backed topic expansion
-├── overlay_text.py      ImageMagick overlay (script, not imported)
 ├── data/styles.json     the seven style families
 └── cli/
     ├── generate.py      lith-generate entry point
@@ -55,39 +53,35 @@ Internal dependency direction, no cycles:
 recipe  ←  styles  ←  render
    ↑         ↑          ↑
    └─────────┴──────────┴──  __init__  ←  cli.generate, cli.run
-paths, typography, expand           (leaves; depend on nothing in-package)
+paths, expand                       (leaves; depend on nothing in-package)
 ```
 
-`overlay_text.py` is bundled as package data and executed as a subprocess by
-`typography.py`. It is never imported, and it imports nothing from `lith`.
-
-Runtime dependencies: none beyond the standard library. `overlay_typography`
-requires the `magick` binary at call time; nothing else touches the network or
-an external process.
+Runtime dependencies: none beyond the standard library, and no external
+binaries. The only subprocess the package ever starts is the `llm_cmd` a caller
+hands to `expand_brief`; the only network call is `download` in `cli.run`.
 
 ---
 
 ## `lith` — public API
 
-`__init__.py` re-exports seven names. `__all__` lists exactly these.
+`__init__.py` re-exports six names. `__all__` lists exactly these.
 
 | Name | Kind | Defined in |
 |---|---|---|
 | [`render_prompt`](#render_prompt) | function | `lith.render` |
 | [`load_recipe`](#load_recipe) | function | `lith.recipe` |
-| [`overlay_typography`](#overlay_typography) | function | `lith.typography` |
 | [`expand_brief`](#expand_brief) | function | `lith.expand` |
 | [`parse_brief_response`](#parse_brief_response) | function | `lith.expand` |
 | [`output_path`](#output_path) | function | `lith.paths` |
 | [`slug`](#slug) | function | `lith.paths` |
 
 ```python
-from lith import load_recipe, render_prompt, overlay_typography
+from lith import load_recipe, render_prompt
 ```
 
 Names not in `__all__` — `Recipe`, `FAMILY_KEYS`, `load_styles`, `get_family`,
-and the module constants — are importable from their defining modules and are
-used by both console scripts.
+`format_spec`, `format_layout`, and the module constants — are importable from
+their defining modules and are used by both console scripts.
 
 ---
 
@@ -99,6 +93,7 @@ used by both console scripts.
 render_prompt(
     style: dict[str, Any] | Recipe,
     brief: dict[str, Any] | None = None,
+    model: str | None = None,
 ) -> dict[str, str]
 ```
 
@@ -111,18 +106,21 @@ Two calling forms:
 | `render_prompt(recipe)` | Resolves the family from the bundled `styles.json` using `recipe.style`, and uses `recipe.brief`. |
 | `render_prompt(style_mapping, brief_mapping)` | Uses the supplied mapping as the family definition. No file is read. |
 
-**Returns** a `dict[str, str]` with exactly four keys:
+**Returns** a `dict` with exactly five keys:
 
 | Key | Source |
 |---|---|
 | `prompt` | `style["prompt_template"]` with slots substituted |
 | `negative_prompt` | `style.get("negative_prompt", "")`, coerced to `str` |
-| `aspect_ratio` | `brief["aspect"]`, else `style.get("default_aspect")`, else `"16:9"` |
+| `aspect_ratio` | [`resolve_aspect`](#resolve_aspect) |
 | `style` | `style["name"]`, coerced to `str` |
+| `aspect_note` | `str` when the model forced a substitution, else `None` |
 
-A falsy `brief["aspect"]` — `None`, `""` — falls through to the family default.
+`model` selects the capability set the ratio is clamped against. Rendering a
+`Recipe` takes it from `recipe.model` unless overridden. With no model, no
+clamping happens.
 
-**Slot substitution.** The template is formatted with exactly five keyword
+**Slot substitution.** The template is formatted with exactly seven keyword
 arguments, regardless of which the template uses:
 
 | Slot | Value | Fallback |
@@ -130,8 +128,13 @@ arguments, regardless of which the template uses:
 | `{headline}` | `brief["headline"]` | `"NEW"` |
 | `{icon}` | `brief["icon"]` | `"gear"` |
 | `{volume}` | `brief["volume"]` | `"1"` |
-| `{base_color}` | `style["palette"]["background"]` | `"#000000"` |
-| `{accent}` | `style["palette"]["accent"]` | `"#00E5FF"` |
+| `{base_color}` | `brief["base_color"]`, else `style["palette"]["background"]` | `"#000000"` |
+| `{accent}` | `brief["accent"]`, else `style["palette"]["accent"]` | `"#00E5FF"` |
+| `{spec}` | [`format_spec(brief)`](#format_spec) | `""` for an empty brief |
+| `{layout}` | [`format_layout(brief)`](#format_layout) | the title zone alone |
+
+Both palette slots take the brief's value first. `D_manga` is the family this
+matters for: its `palette.background` lists three colors.
 
 Because every slot has a fallback, an empty brief renders successfully against
 any bundled family:
@@ -145,17 +148,72 @@ any bundled family:
 
 | Exception | Condition |
 |---|---|
-| `KeyError` | The template references a slot outside the five above. Deliberate — a silently dropped slot is a silently drifted style. |
+| `KeyError` | The template references a slot outside the seven above. |
 | `KeyError` | `style` has no `prompt_template` or no `name`. |
 | `TypeError` | `brief` is supplied alongside a `Recipe` (`"brief must be omitted when rendering a Recipe"`). |
 | `TypeError` | `style` is a mapping and `brief` is `None` (`"brief is required when style is a mapping"`). |
+| `ValueError` | `format_spec` hits a section with no `heading`. |
 
-A custom family may use any subset of the five slots; a sixth slot raises:
+A custom family may use any subset of the seven slots; an eighth slot raises:
 
 ```python
 >>> render_prompt({"name": "x", "prompt_template": "{nope}"}, {})
 KeyError: 'nope'
 ```
+
+### `format_spec`
+
+```python
+format_spec(brief: dict[str, Any]) -> str
+```
+
+Serializes the brief's copy fields into the literal block substituted at
+`{spec}`. Every line it emits is text the model is instructed to reproduce
+character for character.
+
+Emitted in this fixed order, each part omitted when its field is absent:
+
+| Part | Source | Form |
+|---|---|---|
+| Title | `brief["title"]`, else `brief["headline"]` | `TITLE: <text>` |
+| Subtitle | `brief["subtitle"]` | `SUBTITLE: <text>` |
+| Sections | `brief["sections"]`, in order | `SECTION <n> HEADING: <heading>` then one `    - <line>` per entry in `lines` |
+| Diagram | `brief["diagram"]` | `DIAGRAM: <text>` |
+| Footer | `brief["footer"]` | `FOOTER: <text>` |
+
+Parts are joined with `\n`. Section numbering is 1-based and follows list
+order. A section with an empty or absent `lines` yields its heading alone.
+
+**Returns** `""` for a brief with none of these fields. A brief carrying only
+`headline` degrades to a single `TITLE:` line, which is what every pre-spec
+recipe produces.
+
+**Raises** `ValueError` when a section has no `heading`, naming its 1-based
+index and including its `repr`.
+
+### `format_layout`
+
+```python
+format_layout(brief: dict[str, Any]) -> str
+```
+
+Describes the zones the brief actually has copy for, substituted at
+`{layout}`. Zones are numbered `(1)`, `(2)`, … and joined with `\n`.
+
+The wording is deliberately aesthetic-neutral — it names structure, counts and
+sizes only. Each family's `prompt_template` says how those zones are drawn, so
+one function serves all seven.
+
+| Zone | Emitted when | Notes |
+|---|---|---|
+| Title block | always | Sized `12-15%` of frame height with sections present, `30-40%` and "dominating the composition" without. Gains a subtitle clause when `subtitle` is set. |
+| Section panels | `sections` is non-empty | A single column for 1–2 sections, two columns for 3 or more. Names the section count and the longest section's line count, and forbids padding a short panel. |
+| Diagram panel | `diagram` is set | Full-width box. |
+| Footer | `footer` is set | Heavy rule with the footer text beneath. |
+
+Pure — no file or network access, and deterministic for a given brief. Why the
+zones track the spec instead of being a fixed skeleton:
+[About the pipeline → Why the copy is specified](explanation-pipeline.md#why-the-copy-is-specified-never-improvised).
 
 ### `_palette_value`
 
@@ -172,8 +230,100 @@ Private. Resolves one palette field to a string for template insertion.
 | `None` or `""` | `default` |
 | anything else | the value unchanged |
 
-The join, rather than taking the first element, is what lets `A_sticker` offer
-four accents to the model in one prompt.
+The join preserves every element rather than taking the first; `A_sticker`
+is the family that relies on it, offering four accents in one prompt.
+
+---
+
+## `lith.aspect`
+
+### `MODEL_ASPECTS`
+
+```python
+MODEL_ASPECTS: dict[str, set[str]]
+```
+
+| Model | Supported |
+|---|---|
+| `grok-imagine-image-quality`, `grok-imagine-image` | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `2:1` `1:2` |
+| `gpt-image-1` | `1:1` `3:2` `2:3` |
+
+`1:1`, `3:2`, and `2:3` are the intersection. A model absent from the table is
+unconstrained.
+
+### `ratio`
+
+```python
+ratio(aspect: str) -> float | None
+```
+
+Width over height. `None` for anything that is not `N:M` with both terms
+nonzero — `"auto"`, `"0:0"`, a non-string.
+
+### `supported_by`
+
+```python
+supported_by(model: str | None) -> set[str] | None
+```
+
+`MODEL_ASPECTS[model]`, or `None` for an unknown or absent model.
+
+### `unsupported_aspect`
+
+```python
+unsupported_aspect(model: str, aspect: str) -> str | None
+```
+
+A message naming the supported set when `model` cannot produce `aspect`, else
+`None`.
+
+### `nearest_supported`
+
+```python
+nearest_supported(model: str | None, aspect: str) -> str
+```
+
+The supported ratio closest to `aspect` by width/height, so a portrait request
+lands on a portrait ratio. Returns `aspect` unchanged when the model is
+unconstrained, already supports it, or when `aspect` is unparseable.
+
+### `content_aspect`
+
+```python
+content_aspect(brief: dict[str, Any], style: dict[str, Any]) -> str | None
+```
+
+The ratio the brief's content shape calls for, or `None`.
+
+| Condition | Result |
+|---|---|
+| `style["prompt_template"]` has no `{spec}` | `None` — a custom family that opts out |
+| 3 or more `sections` | `"2:3"` |
+| 1–2 `sections` | `"1:1"` |
+| no `sections` | `None` |
+
+### `resolve_aspect`
+
+```python
+resolve_aspect(
+    brief: dict[str, Any],
+    style: dict[str, Any],
+    model: str | None = None,
+) -> tuple[str, str | None]
+```
+
+Resolves the final ratio and a note about any substitution. Precedence:
+
+1. `brief["aspect"]` — set by you, or by `expand_brief` from the topic
+2. [`content_aspect`](#content_aspect) — spec-carrying families only
+3. `style["default_aspect"]`
+4. `FALLBACK_ASPECT` (`"16:9"`)
+
+Whatever the first four choose is then clamped by
+[`nearest_supported`](#nearest_supported). The note is `None` unless step 4
+changed the answer.
+
+All functions in this module are pure — no file, network, or subprocess access.
 
 ---
 
@@ -203,6 +353,36 @@ REQUIRED_BRIEF_KEYS: set[str] = {"topic", "headline", "icon", "aspect"}
 Enforced by `load_recipe`. Note that `volume` is optional and `topic` is
 validated but never substituted into any template.
 
+### `MODEL_ASPECTS`
+
+```python
+MODEL_ASPECTS: dict[str, set[str]]
+```
+
+Aspect ratios each image model can actually produce.
+
+| Model | Supported |
+|---|---|
+| `grok-imagine-image-quality`, `grok-imagine-image` | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `2:1` `1:2` |
+| `gpt-image-1` | `1:1` `3:2` `2:3` |
+
+`1:1`, `3:2`, and `2:3` are the intersection, and every bundled family's
+`default_aspect` is drawn from it. Models absent from the table are treated as
+unconstrained.
+
+### `unsupported_aspect`
+
+```python
+unsupported_aspect(model: str, aspect: str) -> str | None
+```
+
+Returns a message naming the model's supported set when it cannot produce
+`aspect`, else `None`. An unknown `model` returns `None` rather than a false
+positive. `cli.generate` prints the result to stderr before the envelope is
+consumed.
+
+Pure — no file or network access.
+
 ### `Recipe`
 
 ```python
@@ -213,7 +393,6 @@ class Recipe:
     brief: dict
     model: str
     n: int
-    expected_output: str | None
     description: str | None
 ```
 
@@ -238,9 +417,11 @@ Reads a JSON recipe file and returns a `Recipe`.
 | `name` | `path.stem` |
 | `model` | `"grok-imagine-image-quality"` |
 | `n` | `4` |
-| `expected_output` | `None` |
 | `description` | `None` |
 | `brief` | `{}` — then fails validation |
+
+`description` is carried on the dataclass and read by nothing — it is free
+text for whoever opens the recipe file.
 
 **Raises**
 
@@ -332,61 +513,34 @@ output_path(
 
 Returns `out_dir / f"{family_key}_{slug(headline)}{ext}"`. Pure — creates no
 directory and touches no file. `ext` is concatenated verbatim, so it must
-include its leading dot, and callers pass suffixes such as `"_raw.jpg"` to
-build the raw-image name.
+include its leading dot. `cli.run` passes `""` to build a bare stem and then
+appends the extension it sniffs from the image bytes.
 
 ```python
 >>> output_path("/o", "B_brutalist", "32 LANGS", ".png")
 PosixPath('/o/B_brutalist_32_langs.png')
 ```
 
----
-
-## `lith.typography`
-
-### `overlay_typography`
+### `default_output_dir`
 
 ```python
-overlay_typography(
-    src: pathlib.Path,
-    dst: pathlib.Path,
-    lines: list[tuple[str, str]],
-    font: pathlib.Path | None = None,
-) -> pathlib.Path
+default_output_dir(recipe_path: pathlib.Path | str) -> pathlib.Path
 ```
 
-Runs the bundled `overlay_text.py` as a subprocess to paint literal copy onto
-`src`, writing `dst`. Each `lines` entry is a `(label, copy)` tuple; the script
-renders the label bracketed as `[LABEL]`.
+Returns the directory artifacts for `recipe_path` publish to. A recipe whose
+parent directory is named `recipes` resolves to that directory's sibling
+`outputs`; any other recipe resolves to `outputs` beside itself.
 
-Creates `dst.parent` before invoking the subprocess. Returns `dst`.
-
-Invoked as `[sys.executable, overlay_text.py, --input, src, --output, dst,
-(--font, font)?, (--line, f"{label}={body}")...]` with `check=True`. Arguments
-are passed as a list, never through a shell.
-
-**Only `font` is forwarded.** Point size, mask rectangle, baseline, line height,
-column offsets, and both colors stay at the script's defaults. To reach them,
-invoke [`overlay_text.py`](#lithoverlay_text) directly.
-
-**Raises**
-
-| Exception | Condition |
+| Recipe | Result |
 |---|---|
-| `FileNotFoundError` | `src` is not a file, or the bundled script is missing from the install. |
-| `subprocess.CalledProcessError` | The script exits nonzero — missing `magick`, missing font, or a `magick` failure. |
+| `/repo/recipes/x.json` | `/repo/outputs` |
+| `/tmp/x.json` | `/tmp/outputs` |
 
-An empty `lines` list produces no `--line` argument, and the script exits 2
-because `--line` is required.
+Resolves symlinks via `Path.resolve()`. Pure — creates nothing.
 
-### `_OVERLAY_SCRIPT`
-
-```python
-_OVERLAY_SCRIPT: pathlib.Path
-```
-
-Private. Absolute path to `overlay_text.py`, resolved next to
-`typography.py`. Existence is checked on each call rather than at import.
+Both console scripts default to this rather than `Path.cwd() / "outputs"`,
+because an agent's working directory is arbitrary and cwd-derived paths
+scatter artifacts wherever the session started.
 
 ---
 
@@ -399,9 +553,14 @@ DEFAULT_PROMPT: str
 ```
 
 The brief-expansion prompt template. Instructs the model to return a JSON
-object with `topic`, `headline`, `icon`, `aspect`, and `mood`; to choose `icon`
-from `{gear, lightning, globe, skull, brain, rocket, lock}`; to default to
-style B; and to emit no prose outside the JSON block.
+object carrying a full poster spec — `topic`, `headline`, `subtitle`,
+`sections` (3–5 objects of `{heading, lines}`), `diagram`, `footer`, `icon`,
+and `aspect` — to choose `icon` from
+`{gear, lightning, globe, skull, brain, rocket, lock}`, to prefer `2:3` once
+there are four or more sections, and to emit no prose outside the JSON block.
+It also states the rule the whole design depends on: every word the model
+writes is printed verbatim into the image, so it must write only text it wants
+rendered, and keep total body copy to 60–140 words.
 
 Contains a literal `{topic}` placeholder **and** a literal brace list, which is
 why substitution uses `str.replace` rather than `str.format`.
@@ -465,52 +624,6 @@ includes the first 200 characters of `text`.
 
 ---
 
-## `lith.overlay_text`
-
-A standalone script bundled as package data, executed via `sys.executable`. It
-imports nothing from `lith` and is not importable as part of the public API.
-Full flag table: [README → `overlay_text.py`](../README.md#overlay_textpy).
-
-### `DEFAULT_FONT`
-
-```python
-DEFAULT_FONT = pathlib.Path("/System/Library/Fonts/Menlo.ttc")
-```
-
-macOS-specific. On other platforms every call must pass `--font`.
-
-### `parse_line`
-
-```python
-parse_line(value: str) -> tuple[str, str]
-```
-
-Splits `"LABEL=copy"` on the first `=` and strips both halves. Copy may itself
-contain `=`.
-
-**Raises** `argparse.ArgumentTypeError` when `=` is absent, or when either half
-is empty after stripping.
-
-An identical `parse_line` exists in `lith.cli.run`; the two are independent
-copies, each serving its own argument parser.
-
-### `main`
-
-```python
-main() -> int
-```
-
-Builds and runs one `magick` invocation: fills `--mask` with black, then for
-each line *i* draws `[LABEL]` at (`--x`, `--y` + *i* × `--line-height`) in
-`--label-color` and the copy at (`--body-x`, same *y*) in `--body-color`.
-Creates the output's parent directory. Prints the output path on success.
-
-**Returns** `0` on success; `2` if `magick` is not on `$PATH`, the input is not
-a file, or the font is not a file. Raises `subprocess.CalledProcessError` if
-`magick` itself exits nonzero.
-
----
-
 ## `lith.cli.generate`
 
 Entry point for `lith-generate`. Flags:
@@ -533,13 +646,17 @@ main() -> int
 ```
 
 Resolves the brief from `--recipe` or from flags, renders the prompt, and
-prints either a summary or a call envelope.
+prints either a summary or a call envelope. A non-null `aspect_note` is
+printed to stderr as `warning: ...` and carried in the envelope.
 
 Precedence with `--recipe`: `n` and `model` come from the recipe, so `--n` and
 `--model` are silently ignored. `--seed` and `--out` are read from flags in
-both modes. When `--out` is absent, the output path is
-`cwd/outputs/{family_key}_{slug(headline)}.png`, resolved at call time from
-`pathlib.Path.cwd()`.
+both modes. When `--out` is absent, the output path is the extensionless stem
+`cwd/outputs/{family_key}_{slug(headline)}`, resolved at call time from
+`pathlib.Path.cwd()` — `lith-generate` has no image bytes, so it does not name
+a format. The envelope's `output_path` carries that stem; the summary prints it
+as `{stem}.<jpg|png|webp>`, matching `cli.run`. An explicit `--out` is used
+verbatim in both.
 
 Without `--recipe`, `--topic`, `--style`, and `--headline` are each required;
 a missing one triggers `parser.error`, which exits 2.
@@ -562,15 +679,56 @@ Entry point for `lith-run`. Flags: [README → `lith-run`](../README.md#lith-run
 | `JPEG_MAGIC` | `b"\xff\xd8\xff"` |
 | `PNG_MAGIC` | `b"\x89PNG\r\n\x1a\n"` |
 
+### `_image_size`
+
+```python
+_image_size(body: bytes) -> tuple[int, int] | None
+```
+
+Private. Reads `(width, height)` from a PNG IHDR or a JPEG SOF marker.
+Returns `None` for WebP — three container variants, and no model in the CLI's
+list returns it — and for any header it cannot walk. Header inspection only;
+no decode.
+
+### `aspect_mismatch`
+
+```python
+aspect_mismatch(body: bytes, requested: str, tolerance: float = 0.02) -> str | None
+```
+
+Returns a description when the delivered frame differs from `requested` by
+more than `tolerance` (relative), else `None`. Returns `None` when the
+dimensions cannot be read, when `requested` is not `N:M` (`"auto"`), or when
+either term is zero — the check never raises and never blocks a publish.
+
+```python
+>>> aspect_mismatch(jpeg_720x1280, "2:3")
+'requested 2:3 (0.667), received 720x1280 (0.562)'
+```
+
+A model may silently substitute a ratio it does not support, and the layout in
+the prompt was composed for the frame that was requested, so `cli.run` prints
+this as a `[warn]` line rather than letting the substitution pass unnoticed.
+
+### `_image_ext`
+
+```python
+_image_ext(body: bytes) -> str | None
+```
+
+Private. Returns `".jpg"` when `body` starts with `JPEG_MAGIC`, `".png"` for
+`PNG_MAGIC`, `".webp"` for `b"RIFF"` with `b"WEBP"` at offset 8, and `None`
+otherwise. Header inspection only — no decode, no dimension check, no
+validation of anything past byte 12.
+
 ### `_looks_like_image`
 
 ```python
 _looks_like_image(body: bytes) -> bool
 ```
 
-Private. True when `body` starts with `JPEG_MAGIC`, starts with `PNG_MAGIC`, or
-starts with `b"RIFF"` with `b"WEBP"` at offset 8. Header inspection only — no
-decode, no dimension check, no validation of anything past byte 12.
+Private. `_image_ext(body) is not None`. The two share one table so a format
+the guard admits is always a format the publisher can name.
 
 ### `download`
 
@@ -594,6 +752,10 @@ Fetches an image over HTTP(S) into `dst`, applying five guards in order:
 Sends `User-Agent: lith/1.0`. Creates `dst.parent` and writes only after all
 five guards pass. Returns `dst`.
 
+The response is accumulated in memory and written in a single `write_bytes`
+once every guard has passed, so a failed fetch writes nothing at all.
+`DOWNLOAD_MAX_BYTES` therefore bounds resident memory as well as disk.
+
 **Raises** `ValueError` for any guard failure, plus `urllib.error.URLError` /
 `HTTPError` / `socket.timeout` from the network layer.
 
@@ -612,7 +774,7 @@ is permitted.
 load_local(src: pathlib.Path, dst: pathlib.Path) -> pathlib.Path
 ```
 
-Copies a local image into the pipeline's raw path. Reads `src` whole, applies
+Copies a local image into the pipeline's staging path. Reads `src` whole, applies
 the same `_looks_like_image` check, creates `dst.parent`, and writes — unless
 `src` and `dst` resolve to the same file, in which case the write is skipped.
 Returns `dst`.
@@ -620,35 +782,37 @@ Returns `dst`.
 **Raises** `FileNotFoundError` if `src` is not a file; `ValueError` if the
 magic-byte check fails.
 
-### `parse_line`
-
-Identical in behavior to [`lith.overlay_text.parse_line`](#parse_line).
-
 ### `main`
 
 ```python
 main() -> int
 ```
 
-Loads the recipe, renders the prompt, and derives both output paths. Branches
-three ways:
+Loads the recipe, resolves the output directory from `--output-dir` or
+[`default_output_dir`](#default_output_dir), renders the prompt, and derives
+the output stem via `output_path(..., "")`. Branches two ways:
 
 | Branch | Effect |
 |---|---|
-| No image source | Prints recipe, family, style, aspect, model, `n`, prompt, and final output path. Writes nothing. |
-| Image source, no `--line` | Ingests to the raw path, prints `[warn] no --line supplied`, reports the raw file as done. |
-| Image source with `--line` | Ingests to the raw path, overlays, reports the final PNG as done. |
+| No image source | Prints recipe, family, style, aspect, model, `n`, prompt, and `{stem}.<jpg\|png\|webp>`. Writes nothing. |
+| Image source | Stages the bytes at `{stem}.part`, warns if [`aspect_mismatch`](#aspect_mismatch) finds drift, then `Path.replace`s that onto `{stem}` plus the extension `_image_ext` reads from the first 12 bytes. |
 
-Raw path: `{output_dir}/{family_key}_{slug(headline)}_raw.jpg` — the `.jpg`
-suffix is fixed regardless of the source format. Final path: the same stem with
-`.png`. Both are overwritten without prompting.
+Output stem: `{output_dir}/{family_key}_{slug(headline)}`. The extension is not
+known until the bytes arrive — Grok returns JPEG, `gpt-image-1` returns PNG —
+so the artifact is named after what actually landed. Nothing is re-encoded, and
+the published file is overwritten without prompting on a re-run.
+
+The staging file exists because the extension cannot be chosen until the bytes
+are in hand: they land at `{stem}.part`, are inspected, then renamed. It is not
+a crash-safety measure — `download` and `load_local` both write their whole
+body in one call after their guards pass, so a failed fetch leaves no file at
+all. A `.part` survives only if the rename itself fails.
 
 `--image-url` and `--image-file` are a mutually exclusive argparse group.
 Progress lines print with `flush=True`.
 
-**Returns** `0` in all three branches. Argparse errors exit 2. Guard failures
-from `download` or `load_local`, and a nonzero `magick`, propagate as
-tracebacks.
+**Returns** `0` in both branches. Argparse errors exit 2. Guard failures from
+`download` or `load_local` propagate as tracebacks.
 
 ---
 
@@ -656,19 +820,19 @@ tracebacks.
 
 | Exception | Raised by | Trigger |
 |---|---|---|
-| `KeyError` | `render_prompt` | Template slot outside the supported five |
+| `KeyError` | `render_prompt` | Template slot outside the supported seven |
 | `KeyError` | `load_recipe` | Missing `style` key |
 | `KeyError` | `get_family`, `Recipe.family_key` | Style letter outside `A`–`G` |
 | `TypeError` | `render_prompt` | `Recipe` with a brief, or mapping without one |
+| `ValueError` | `format_spec`, `render_prompt` | A brief section with no `heading` |
 | `ValueError` | `load_recipe` | Missing required brief keys |
 | `ValueError` | `parse_brief_response`, `expand_brief` | No decodable JSON object |
 | `ValueError` | `download` | Bad scheme, bad redirect, oversize body, non-image bytes |
 | `ValueError` | `load_local` | Non-image bytes |
-| `FileNotFoundError` | `load_recipe`, `load_styles`, `load_local`, `overlay_typography` | Missing input file |
+| `FileNotFoundError` | `load_recipe`, `load_styles`, `load_local` | Missing input file |
 | `json.JSONDecodeError` | `load_recipe`, `load_styles` | Malformed JSON |
-| `subprocess.CalledProcessError` | `overlay_typography`, `expand_brief` | Subprocess exits nonzero |
+| `subprocess.CalledProcessError` | `expand_brief` | `llm_cmd` exits nonzero |
 | `subprocess.TimeoutExpired` | `expand_brief` | Command exceeds `timeout` |
-| `argparse.ArgumentTypeError` | `parse_line` | Malformed `LABEL=copy` |
 
 No custom exception types are defined.
 
@@ -679,11 +843,11 @@ No custom exception types are defined.
 | Function | Filesystem | Network | Subprocess | Deterministic |
 |---|---|---|---|---|
 | `render_prompt` | — | — | — | yes |
+| `format_spec`, `format_layout` | — | — | — | yes |
 | `slug`, `output_path` | — | — | — | yes |
 | `load_recipe` | read | — | — | yes |
 | `load_styles`, `get_family` | read | — | — | yes |
 | `parse_brief_response` | — | — | — | yes |
-| `overlay_typography` | read + write | — | `magick` | yes, given the same inputs |
 | `expand_brief` | — | via `llm_cmd` | `llm_cmd` | no |
 | `download` | write | yes | — | no |
 | `load_local` | read + write | — | — | yes |

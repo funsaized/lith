@@ -14,6 +14,7 @@ import pathlib
 import sys
 
 from lith import load_recipe, output_path, render_prompt
+from lith.paths import default_output_dir
 from lith.recipe import FAMILY_KEYS
 from lith.styles import get_family, load_styles
 
@@ -33,7 +34,7 @@ def main() -> int:
     parser.add_argument("--recipe", type=pathlib.Path)
     parser.add_argument("--topic")
     parser.add_argument("--style", choices=list("ABCDEFG"))
-    parser.add_argument("--aspect", choices=["16:9", "4:5", "1:1", "9:16"])
+    parser.add_argument("--aspect", choices=["16:9", "3:2", "1:1", "2:3", "3:4", "9:16"])
     parser.add_argument("--headline")
     parser.add_argument("--icon", default="gear")
     parser.add_argument("--n", type=int, default=4)
@@ -58,7 +59,12 @@ def main() -> int:
     args = parser.parse_args()
 
     styles = load_styles()
-    output_dir = pathlib.Path.cwd() / "outputs"
+    # Anchored to the recipe when there is one; an agent's cwd is arbitrary.
+    output_dir = (
+        default_output_dir(args.recipe)
+        if args.recipe
+        else pathlib.Path.cwd() / "outputs"
+    )
 
     if args.recipe:
         recipe = load_recipe(args.recipe)
@@ -67,7 +73,7 @@ def main() -> int:
         n = recipe.n
         model = recipe.model
         out = args.out or output_path(
-            output_dir, recipe.family_key, brief["headline"], ".png"
+            output_dir, recipe.family_key, brief["headline"], ""
         )
     else:
         for required in ("topic", "style", "headline"):
@@ -78,10 +84,12 @@ def main() -> int:
         n = args.n
         model = args.model
         out = args.out or output_path(
-            output_dir, FAMILY_KEYS[args.style], brief["headline"], ".png"
+            output_dir, FAMILY_KEYS[args.style], brief["headline"], ""
         )
 
-    rendered = render_prompt(style, brief)
+    rendered = render_prompt(style, brief, model=model)
+    if rendered["aspect_note"]:
+        print(f"warning: {rendered['aspect_note']}", file=sys.stderr, flush=True)
 
     if args.call:
         envelope = {
@@ -93,6 +101,9 @@ def main() -> int:
             "seed": args.seed,
             "output_path": str(out),
             "style": rendered["style"],
+            # Machine-visible too: an agent consuming the envelope should not
+            # have to read stderr to learn the ratio was substituted.
+            "aspect_note": rendered["aspect_note"],
         }
         if args.emit_json:
             print(json.dumps(envelope, indent=2))
@@ -109,7 +120,8 @@ def main() -> int:
         print(f"  {line}")
     print(f"[negative]    {rendered['negative_prompt']}")
     print(f"[plan]        {n} candidates via {model}, seed={args.seed}")
-    print(f"[output]      {out}")
+    # A derived path is a stem: only lith-run sees the bytes that name it.
+    print(f"[output]      {out}" + ("" if args.out else ".<jpg|png|webp>"))
     print("Next: pass --call to emit the envelope for image_generate.")
     return 0
 

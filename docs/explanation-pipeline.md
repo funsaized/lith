@@ -17,22 +17,24 @@ The intended shape of the full pipeline is six stages:
 2. STYLE BIBLE     pull the family template, substitute the brief
 3. GENERATE        N candidates from an image model
 4. SCORE           brand-DNA + readability + concept fit
-5. POST-PROCESS    typography overlay, crop, grade, export
+5. POST-PROCESS    crop, grade, export
 6. REVIEW/UPLOAD   human approve → media upload → post
 ```
 
-Of those, **lith implements 2 and the typography half of 5.** Stage 1 is a
-JSON file you write by hand (or `expand_brief`, which shells out to an LLM CLI
-you supply). Stage 3 is a call lith emits an envelope for but never makes.
-Stage 4 is a human looking at four candidates. Stage 6 is a human and a
-separate tool.
+Of those, **lith implements 2, and only the export half of 5.** There is no
+crop and no grade — the published file is the model's bytes, unmodified, under
+a derived name. Stage 1 is a JSON file you write by hand (or `expand_brief`,
+which shells out to an LLM CLI you supply). Stage 3 is a call lith emits an
+envelope for but never makes. Stage 4 is a human looking at four candidates.
+Stage 6 is a human and a separate tool.
 
 That is not an unfinished pipeline; it is where the deterministic/probabilistic
 line was drawn. Everything on lith's side of the line is pure, testable, and
-reproducible: given the same recipe, `render_prompt` returns the same prompt
-forever, and given the same image and lines, `overlay_typography` writes the
-same pixels. Everything on the other side needs judgment or a network call, and
-lith declines to pretend otherwise.
+reproducible: given the same recipe, `render_prompt` returns the same prompt —
+copy block and layout description included — forever, and `lith-run` publishes
+the model's bytes unchanged under a name derived from that same recipe.
+Everything on the other side needs judgment or a network call, and lith
+declines to pretend otherwise.
 
 The concrete consequence: `lith-run` with no `--image-url` and no `--image-file`
 prints its plan and exits 0. The dry run is the default, not a flag, because
@@ -47,7 +49,7 @@ the call and hands the result back via `--image-url` or `--image-file`.
 Three reasons this split is worth the extra hop:
 
 **No credentials, no vendor SDK, no network in the library.** Lith has zero
-runtime dependencies beyond the standard library and an ImageMagick binary. It
+runtime dependencies beyond the standard library and no external binaries. It
 installs and runs anywhere Python 3.10 does, and the test suite needs no
 mocking of an HTTP client that isn't there.
 
@@ -77,42 +79,48 @@ Grok first, OpenAI second, MiniMax third — and always at least four candidates
 per call, which is why `n` defaults to 4 in both the CLI and `load_recipe`. The
 hit rate on a first candidate is far lower than most people expect.
 
-## Why typography is a separate pass
+## Why the copy is specified, never improvised
 
-Image models render text badly. Not always, but often enough that shipping
-model-drawn body copy means shipping occasional gibberish under your own name.
-Small monospaced text is the worst case: at 25pt the letterforms smear, and
-near-misses on product names look like typos rather than artifacts.
+Image models render text badly. Not always, but often enough that letting one
+choose the words means shipping occasional gibberish under your own name.
+Asking for "a poster about our Tailscale setup" gets you plausible-looking
+labels naming ports you don't use.
 
-So lith splits the frame in two. The model owns visual layout — composition,
-palette, illustration, the giant headline where a wrong glyph would be obvious
-enough to catch. `overlay_text.py` owns every literal character that must be
-correct, drawn with ImageMagick in a real font at a fixed position:
+So lith splits authorship from rendering. Every word that will appear in the
+frame is written down first — by you in the recipe, or by an LLM through
+`expand_brief`, whose prompt is explicit that "every word you write is printed
+verbatim into the image." `render.format_spec` then serializes that brief into
+a literal copy block:
 
 ```
-magick input.jpg
-  -fill #000000 -draw "rectangle 120,365 1165,515"   # mask the model's attempt
-  -font Menlo.ttc -pointsize 25
-  -fill #FF3030 -annotate +150+405 "[SYSTEM]"        # label
-  -fill #00E5FF -annotate +295+405 "32 language..."  # body
-  output.png
+TITLE: TAILSCALE
+SUBTITLE: A PRIVATE CLOUD IN THREE MACHINES
+SECTION 1 HEADING: 01 - THE HUB
+    - Mac mini M4, always on
+    - mosh survives every dropped link
+DIAGRAM: A central cloud labeled TAILSCALE with lines to MINI, AIR and NZXT
+FOOTER: s11a.com
 ```
 
-The mask is the important part: the overlay paints a black rectangle over the
-region first, then draws on top. Whatever the model invented in that band is
-gone before our copy lands.
+and the family template drops it in under a standing order: *render the copy
+below exactly as written, spelled character for character, in the structure
+given; do not invent, paraphrase, abbreviate, translate, reorder, or add any
+word that is not listed here.* The negative prompt pushes the same way —
+`invented words`, `lorem ipsum`, `misspelled words`. The model still draws the
+glyphs, but it is never the author.
 
-This is also why `overlay_typography` shells out to `overlay_text.py` rather
-than building the `magick` argv inline. The script owns a set of
-dimension-specific tuning constants — mask rectangle, baseline, line height,
-the two column x-offsets — and two copies of those constants would drift.
+`render.format_layout` is the other half. It emits only the zones the brief
+actually has copy for: a title-only brief gets one zone and a title sized to
+dominate the frame, while a four-section brief gets a title, a two-column panel
+grid, a diagram panel, and a footer rule. An unconditional four-zone skeleton
+would contradict the verbatim rule directly — told to draw a section grid with
+no sections to put in it, the model fills the boxes with invented copy.
 
-**The constants are tuned for one layout.** The defaults assume a 1280×720
-family-B panel; the mask `120,365 1165,515` is a band in that specific frame.
-On a 4:5 patent diagram they land in the wrong place. Overriding them means
-calling `overlay_text.py` directly, because `overlay_typography` forwards only
-`--font`. Aspect-aware masks are the obvious next piece of work and are not
-built.
+**This narrows the failure mode; it does not close it.** A model can still
+misspell a word it was handed. What it can no longer do is decide what the
+words are, which is the difference between a typo you catch on review and a
+confident false claim you don't. Reviewing candidates means reading every
+character against the spec, which is why stage 4 stays a human.
 
 ## Trust boundaries
 
@@ -129,20 +137,26 @@ streaming rather than after; and a magic-byte check for JPEG, PNG, or WebP
 before anything is written to disk. A model API that returns an HTML error page
 fails at the magic-byte check instead of becoming a corrupt `.jpg`.
 
-**Overlay copy is trusted but shape-checked.** `--line LABEL=copy` requires both
-halves to be non-empty; the values go straight into the `magick` argv as
-separate list elements, never through a shell.
+**Spec copy is trusted but shape-checked.** The strings in `sections`,
+`diagram`, and `footer` are yours, and `format_spec` passes them through
+unescaped — they are going into a prompt, not a shell. What it does check is
+shape: a section without a `heading` raises `ValueError` naming its index,
+rather than silently emitting a panel with a blank banner.
 
 `--image-file` skips the network guards but keeps the magic-byte check, since a
-local path is your own.
+local path is your own. Either way the bytes land on a `.part` file first and
+are renamed only once the format is known — not for crash safety but because
+the extension is a property of the bytes, and lith refuses to guess it from the
+recipe. Both paths buffer the whole body and write it once, after their guards
+pass, so a rejected image never reaches the disk at all.
 
 ## Deliberate omissions
 
-**Video is out of scope.** Image-to-video models warp small monospaced glyphs
-under any motion prompt — precisely the `[SYSTEM]`/`[NEW]`/`[READY]` band at
-25pt Menlo that the overlay exists to protect. Adding video means choosing
-between overlaying after the video pass, replacing the Menlo+magick path with
-`ffmpeg drawtext`, or compositing the still overlay over every frame. Each is a
+**Video is out of scope.** Image-to-video models warp small text under any
+motion prompt — precisely the section panels the spec exists to get right, and
+the one thing a still image gets to hold steady. Adding video means deciding
+whether the copy is re-rendered per frame, held as a static plate over the
+motion, or drawn afterwards with something like `ffmpeg drawtext`. Each is a
 separate design decision, and none of them is "add a flag."
 
 **Post → brief ingestion is a different project.** This pipeline writes outward:

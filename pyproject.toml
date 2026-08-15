@@ -44,4 +44,4 @@ Issues = "https://github.com/funsaized/lith/issues"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"lith" = ["overlay_text.py", "data/styles.json"]
+"lith" = ["data/styles.json"]

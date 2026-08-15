@@ -45,7 +45,7 @@ A recipe holds every word that will appear in the image. Create
   "name": "tutorial_mesh",
   "description": "Tutorial recipe: a three-panel explainer in the sci-fi brutalist family.",
   "style": "B",
-  "model": "grok-imagine-image-quality",
+  "model": "grok-imagine-image-2.0",
   "n": 4,
   "brief": {
     "topic": "Hermes Agent now runs 32 language runtimes",
@@ -80,7 +80,7 @@ uv run lith-run --recipe recipes/tutorial_mesh.json
 [family]      B_brutalist
 [style]       Sci-fi brutalist UI
 [aspect]      2:3
-[model]       grok-imagine-image-quality (n=4)
+[model]       grok-imagine-image-2.0 (n=4)
 [prompt]
   Single pure-black panel (#000000) overlaid with a 1px cyan grid at 8% opacity...
   LAYOUT — arrange the frame exactly as these numbered notes describe...

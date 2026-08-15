@@ -111,6 +111,20 @@ underspecified. Negatives are a nudge rather than a guarantee, which is why the
 positive template is long and specific: the reliable way to not get a gradient
 is to describe something else in detail.
 
+## The frame a family asks for
+
+Four families default to `16:9` and three to `2:3`, and until recently that was
+a promise lith could not keep on every endpoint. `gpt-image-1` produced three
+ratios total, so a landscape family pointed at OpenAI came back reframed. With
+`gpt-image-2` and `grok-imagine-image-2.0` the two current models share nine
+ratios, and every family default falls inside that overlap.
+
+The lesson generalises past this particular fix: a family's `default_aspect` is
+a claim about the frame its composition needs, and that claim is only as good as
+the model's willingness to honour it. Lith checks it twice — clamping before the
+call, and comparing the published image's real dimensions after — because a
+reframed poster is a layout rendered into a frame it was not composed for.
+
 ## What all seven share
 
 Beneath the differences, the constants are deliberate: dark grounds dominate

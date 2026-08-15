@@ -446,3 +446,27 @@ def test_f_woodcut_demands_lining_figures():
     assert "lining figure" in template
     assert "Garamond" not in template, "the face name is what pulls oldstyle figures in"
     assert "old-style figures" in get_family(styles, "F")["negative_prompt"]
+
+
+def test_current_generation_models_are_known():
+    """An unlisted model skips the aspect guard entirely, so the current
+    defaults must be in the table."""
+    from lith.aspect import MODEL_ASPECTS, nearest_supported
+
+    assert "grok-imagine-image-2.0" in MODEL_ASPECTS
+    assert "gpt-image-2" in MODEL_ASPECTS
+    # 2.0 adds the ultra-wide pair the 1.x line lacks.
+    assert MODEL_ASPECTS["grok-imagine-image-2.0"] > MODEL_ASPECTS["grok-imagine-image"]
+    # gpt-image-2 lifts gpt-image-1's three-ratio ceiling.
+    assert MODEL_ASPECTS["gpt-image-2"] > MODEL_ASPECTS["gpt-image-1"]
+    # 16:9 was unreachable on gpt-image-1 and clamped to 3:2; gpt-image-2 has it.
+    assert nearest_supported("gpt-image-1", "16:9") == "3:2"
+    assert nearest_supported("gpt-image-2", "16:9") == "16:9"
+
+
+def test_default_model_is_current_generation(tmp_path):
+    p = tmp_path / "r.json"
+    p.write_text(json.dumps({
+        "style": "B", "brief": {"topic": "t", "headline": "h", "icon": "i"},
+    }))
+    assert load_recipe(p).model == "grok-imagine-image-2.0"

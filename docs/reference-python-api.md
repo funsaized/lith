@@ -323,13 +323,16 @@ zones track the spec instead of being a fixed skeleton:
 MODEL_ASPECTS: dict[str, set[str]]
 ```
 
-| Model | Supported |
-|---|---|
-| `grok-imagine-image-quality`, `grok-imagine-image` | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `2:1` `1:2` |
-| `gpt-image-1` | `1:1` `3:2` `2:3` |
+| Model | Generation | Can produce |
+|---|---|---|
+| `grok-imagine-image-2.0` | current, **default** | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `2:1` `1:2` `20:9` `9:20` |
+| `gpt-image-2` | current | `1:1` `3:2` `2:3` `4:3` `3:4` `16:9` `9:16` `2:1` `1:2` `5:4` `4:5` `3:1` `1:3` `21:9` `9:21` |
+| `grok-imagine-image-quality`, `grok-imagine-image` | previous | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `2:1` `1:2` |
+| `gpt-image-1` | previous | `1:1` `3:2` `2:3` |
+| `minimax-image` | — | not listed, so never clamped |
 
-`1:1`, `3:2`, and `2:3` are the intersection. A model absent from the table is
-unconstrained.
+A model absent from the table is unconstrained: `nearest_supported` returns the
+request unchanged and no warning is raised.
 
 ### `ratio`
 
@@ -465,7 +468,7 @@ Reads a JSON recipe file and returns a `Recipe`.
 | Field | Default |
 |---|---|
 | `name` | `path.stem` |
-| `model` | `"grok-imagine-image-quality"` |
+| `model` | `"grok-imagine-image-2.0"` |
 | `n` | `4` |
 | `description` | `None` |
 | `brief` | `{}` — then fails validation |

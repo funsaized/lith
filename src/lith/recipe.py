@@ -44,7 +44,7 @@ def load_recipe(path: pathlib.Path | str) -> Recipe:
         name=data.get("name", path.stem),
         style=data["style"],
         brief=brief,
-        model=data.get("model", "grok-imagine-image-quality"),
+        model=data.get("model", "grok-imagine-image-2.0"),
         n=data.get("n", 4),
         description=data.get("description"),
     )

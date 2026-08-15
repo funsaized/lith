@@ -197,11 +197,11 @@ lith-generate --topic TEXT --style {A..G} --headline TEXT [options]
 | `--topic` | str | — | One-sentence brief. Required without `--recipe`. |
 | `--style` | `A`–`G` | — | Style family. Required without `--recipe`. |
 | `--headline` | str | — | In-image headline. Required without `--recipe`. |
-| `--aspect` | `16:9` `3:2` `1:1` `2:3` `3:4` `9:16` | family default | Aspect ratio. Warns on stderr if the chosen model cannot produce it. |
+| `--aspect` | `16:9` `3:2` `4:3` `1:1` `3:4` `2:3` `9:16` | family default | Aspect ratio. Warns on stderr if the chosen model cannot produce it. |
 | `--icon` | str | `gear` | Motif substituted into `{icon}`. |
 | `--n` | int | `4` | Candidate count recorded in the envelope. |
 | `--seed` | int | `None` | Seed recorded in the envelope. |
-| `--model` | `grok-imagine-image-quality` `grok-imagine-image` `gpt-image-1` `minimax-image` | `grok-imagine-image-quality` | Model recorded in the envelope. |
+| `--model` | see [Aspect ratios](#aspect-ratios) | `grok-imagine-image-2.0` | Model recorded in the envelope. Never called. |
 | `--out` | path | derived stem | Output path recorded in the envelope, verbatim. Without it, the derived value carries no extension. |
 | `--call` | flag | off | Emit the envelope instead of the summary. |
 | `--emit-json` | flag | off | With `--call`, emit JSON rather than `key=value` lines. |
@@ -304,7 +304,7 @@ A recipe is a JSON object. See
 | `brief` | object | yes | — | Substitution values; see below. |
 | `name` | string | no | file stem | Recipe identifier. |
 | `description` | string | no | `null` | Free text; not used at runtime. |
-| `model` | string | no | `grok-imagine-image-quality` | Recorded in the envelope. |
+| `model` | string | no | `grok-imagine-image-2.0` | Recorded in the envelope. Not validated against the CLI's choices, so any model id passes through. |
 | `n` | int | no | `4` | Candidate count recorded in the envelope. |
 
 `brief` keys:
@@ -341,7 +341,7 @@ what every pre-spec recipe produces.
     "aspect": "16:9",
     "volume": "1"
   },
-  "model": "grok-imagine-image-quality",
+  "model": "grok-imagine-image-2.0",
   "n": 4
 }
 ```
@@ -439,13 +439,18 @@ Whatever those choose is then clamped to what the recipe's `model` can actually
 produce. A model does not reject a ratio it lacks; it silently substitutes one,
 so lith substitutes first and says so.
 
-| Model | Can produce |
-|---|---|
-| `grok-imagine-image-quality`, `grok-imagine-image` | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `2:1` `1:2` |
-| `gpt-image-1` | `1:1` `3:2` `2:3` |
+| Model | Generation | Can produce |
+|---|---|---|
+| `grok-imagine-image-2.0` | current, **default** | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `2:1` `1:2` `20:9` `9:20` |
+| `gpt-image-2` | current | `1:1` `3:2` `2:3` `4:3` `3:4` `16:9` `9:16` `2:1` `1:2` `5:4` `4:5` `3:1` `1:3` `21:9` `9:21` |
+| `grok-imagine-image-quality`, `grok-imagine-image` | previous | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `2:1` `1:2` |
+| `gpt-image-1` | previous | `1:1` `3:2` `2:3` |
+| `minimax-image` | — | not listed, so never clamped |
 
-`1:1`, `3:2` and `2:3` are the intersection, and every family default is drawn
-from it or from `16:9`. When a clamp happens, `lith-generate` prints
+The two current models share `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `3:2`, `2:3`,
+`2:1` and `1:2`, and every family default is drawn from that intersection.
+`gpt-image-2` drops `5:4`, `4:5`, `3:1`, `1:3` and `9:21` at 2K and 4K; lith
+does not request a resolution, so they are listed here. When a clamp happens, `lith-generate` prints
 `warning: ...` on stderr and sets `aspect_note` in the envelope; `lith-run`
 prints it as a `[warn]` line. `lith-run` also compares the *published* image's
 real dimensions against the request and warns when they differ by more than 2%,

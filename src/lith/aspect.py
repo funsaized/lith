@@ -20,15 +20,23 @@ from __future__ import annotations
 from typing import Any
 
 # Ratios each model can produce. A model absent here is treated as
-# unconstrained. 1:1, 3:2 and 2:3 are the intersection, which is why every
-# bundled family defaults to one of them or to 16:9.
+# unconstrained — minimax-image has no entry, so it is never clamped.
+#
+# gpt-image-2's wider set is not free: 5:4, 4:5, 3:1, 1:3 and 9:21 drop out at
+# 2K and 4K. Lith does not request a resolution, so they are listed, but a
+# caller pinning a large output should expect them to fail there.
+_GROK_1X = {"1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "2:1", "1:2"}
+
 MODEL_ASPECTS: dict[str, set[str]] = {
-    "grok-imagine-image-quality": {
-        "1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "2:1", "1:2",
+    # Current generation.
+    "grok-imagine-image-2.0": _GROK_1X | {"20:9", "9:20"},
+    "gpt-image-2": {
+        "1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16", "2:1", "1:2",
+        "5:4", "4:5", "3:1", "1:3", "21:9", "9:21",
     },
-    "grok-imagine-image": {
-        "1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "2:1", "1:2",
-    },
+    # Previous generation, still callable.
+    "grok-imagine-image-quality": _GROK_1X,
+    "grok-imagine-image": _GROK_1X,
     "gpt-image-1": {"1:1", "3:2", "2:3"},
 }
 

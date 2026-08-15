@@ -66,18 +66,30 @@ has to bridge two commands. That's the trade.
 
 ## Model routing
 
-Nothing in the code routes between models; the `--model` flag records a choice.
-The routing that has worked in practice:
+Nothing in the code routes between models. `--model` records a choice that
+somebody else acts on, and the only model knowledge lith holds is
+`aspect.MODEL_ASPECTS` — which ratios each one can actually produce.
 
-| Model family | Share | Why |
-|---|---|---|
-| **Grok** (`grok-imagine-image-quality`, `grok-imagine-image`) | ~70% | Best at committed, unusual aesthetics — manga tape-insert, woodcut, neon brutalist. Supports image-to-image, so a style reference can be locked and re-rendered. |
-| **OpenAI** (`gpt-image-1`) | ~20% | Better at coherent typography inside the frame. Use for family E and anywhere in-image text is non-negotiable. |
-| **MiniMax** (`minimax-image`) | ~10% | Cheap variation, background patterns, vector-flat stickers, throwaway rounds. |
+That table exists because an image model does not reject a ratio it lacks. It
+substitutes one silently, and the layout in the prompt was composed for the
+frame that was requested. Lith would rather substitute first and say so.
 
-Grok first, OpenAI second, MiniMax third — and always at least four candidates
-per call, which is why `n` defaults to 4 in both the CLI and `load_recipe`. The
-hit rate on a first candidate is far lower than most people expect.
+The current generation is `grok-imagine-image-2.0` and `gpt-image-2`, and the
+default is grok. Both are far more capable than what they replace, in a way that
+closed a real wound: `gpt-image-1` offered exactly three ratios, so four of the
+seven families — everything defaulting to `16:9` — were clamped to `3:2` the
+moment you pointed them at OpenAI. `gpt-image-2` has `16:9`, and every family
+default is now clean on both current models without any family changing.
+
+The older ids remain callable and remain in the table, because a recipe pinning
+`gpt-image-1` should still get a warning rather than a silent reframe.
+
+Two gaps worth knowing. `minimax-image` has no entry, so it is never clamped and
+never warned about — a deliberate omission rather than an oversight, since an
+unknown model should not be second-guessed. And `--model` is an argparse
+`choices` list, so the *flag* rejects an unlisted id while a recipe file does
+not: `load_recipe` takes `model` at face value. That asymmetry is the seam to
+watch when a new model ships.
 
 ## Why the copy is specified, never improvised
 

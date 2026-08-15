@@ -46,11 +46,17 @@ and optional topic expansion.
    publishes it under the recipe's deterministic output path:
 
    ```bash
-   lith-run --recipe /absolute/path/to/recipe.json --image-url <url>
+   lith-run --recipe /absolute/path/to/recipe.json --image-url <url> --strict
    ```
 
    The published extension follows the returned bytes (`.jpg`, `.png`, or
    `.webp`); the image is never re-encoded.
+
+   Never write the model's bytes to disk any other way. `lith-run` is the only
+   step that checks the delivered frame against the one the prompt was composed
+   for, and a generation tool may quietly substitute a different one. Add
+   `--strict` in any batch or sweep so a substituted frame exits 1 instead of
+   printing a warning that scrolls past.
 
 4. Use `--image-file /absolute/path/to/image` instead of `--image-url` for a
    local source.
@@ -114,6 +120,14 @@ labels it names appear as text.
 
 - Treat recipe `n` as the requested candidate count and select one candidate
   manually.
+- Report which of `prompt`, `negative_prompt`, `aspect_ratio`, `model` and `n`
+  the generation tool actually accepted. A tool that ignores a field still
+  returns an image, so a run can look clean while the envelope was discarded.
+- Never concatenate an envelope field into the `prompt` string when the tool
+  has no parameter for it. A negative prompt pasted into a positive prompt asks
+  the model *for* what it was meant to forbid, and every smuggled line is more
+  text the model can letter into the frame. Report the field as unavailable and
+  leave the prompt untouched.
 - Expect deterministic output paths to overwrite an earlier run.
 - Use only HTTP(S) URLs with `--image-url`.
 - Expect a brief with no `sections` to render a title-only poster in any
@@ -124,5 +138,9 @@ labels it names appear as text.
 - Confirm `lith-generate --help` and `lith-run --help` exit 0.
 - Confirm `python -c "from lith import render_prompt"` exits 0 in environments
   that install lith as a library dependency.
-- Confirm the final output exists, is non-empty, and that every line of the
-  brief's spec appears in the image, spelled correctly.
+- Confirm `lith-run` exited 0. A published file is not the success signal —
+  `lith-run` publishes the bytes even when it rejects the frame, so a file
+  exists either way.
+- Confirm every line of the brief's spec appears in the image, spelled
+  correctly, and that no wording from the prompt's own instructions was
+  lettered into the frame.

@@ -8,3 +8,5 @@ __pycache__/
 candidates/
 outputs/*
 !outputs/B_brutalist_32_langs_raw.jpg
+.worktrees/
+.coverage

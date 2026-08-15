@@ -116,7 +116,7 @@ Two calling forms:
 | `render_prompt(recipe)` | Resolves the family from the bundled `styles.json` using `recipe.style`, and uses `recipe.brief`. |
 | `render_prompt(style_mapping, brief_mapping)` | Uses the supplied mapping as the family definition. No file is read. |
 
-**Returns** a `dict` with exactly five keys:
+**Returns** a `dict` with exactly six keys:
 
 | Key | Source |
 |---|---|
@@ -125,6 +125,7 @@ Two calling forms:
 | `aspect_ratio` | [`resolve_aspect`](#resolve_aspect) |
 | `style` | `style["name"]`, coerced to `str` |
 | `aspect_note` | `str` when the model forced a substitution, else `None` |
+| `copy_note` | [`copy_note`](#copy_note) — `str` when the copy block is too thin, else `None` |
 
 `model` selects the capability set the ratio is clamped against. Rendering a
 `Recipe` takes it from `recipe.model` unless overridden. With no model, no
@@ -201,6 +202,29 @@ recipe produces.
 
 **Raises** `ValueError` when a section has no `heading`, naming its 1-based
 index and including its `repr`.
+
+### `copy_note`
+
+```python
+copy_note(spec: str, prompt: str) -> str | None
+```
+
+Warns when the copy block is too thin relative to the instructions around it.
+Returns `None` when `len(spec) * 20 >= len(prompt) - len(spec)`, otherwise a
+sentence naming both character counts.
+
+The ratio matters rather than the raw length, because the template is a fixed
+cost — palette, mood, layout preamble — that scales per family while only the
+spec block varies. A brief with no `sections` renders a copy block of roughly
+sixteen characters against fifteen hundred of instructions, and at that ratio
+the model starts lettering the instructions: real output has printed palette
+hex codes as panel headings and a font name as body copy.
+
+This never blocks rendering. A title-only poster is a legitimate request, and
+[`format_layout`](#format_layout) already emits only the zones the brief has
+copy for. The note exists so the caller learns before the call rather than
+after, and it reaches them three ways: on stderr from `lith-generate`, as a
+`[warn]` line from `lith-run`, and as the envelope's `copy_note` field.
 
 ### `_palette_value`
 
@@ -699,8 +723,9 @@ main() -> int
 ```
 
 Resolves the brief from `--recipe` or from flags, renders the prompt, and
-prints either a summary or a call envelope. A non-null `aspect_note` is
-printed to stderr as `warning: ...` and carried in the envelope.
+prints either a summary or a call envelope. A non-null `aspect_note` or
+[`copy_note`](#copy_note) is printed to stderr as `warning: ...` and carried in
+the envelope. Both can fire on the same render.
 
 Precedence with `--recipe`: `n` and `model` come from the recipe, so `--n` and
 `--model` are silently ignored. `--seed` and `--out` are read from flags in
@@ -850,6 +875,12 @@ the output stem via `output_path(..., "")`. Branches two ways:
 | No image source | Prints recipe, family, style, aspect, model, `n`, prompt, and `{stem}.<jpg\|png\|webp>`. Writes nothing. |
 | Image source | Stages the bytes at `{stem}.part`, warns if [`aspect_mismatch`](#aspect_mismatch) finds drift, then `Path.replace`s that onto `{stem}` plus the extension `_image_ext` reads from the first 12 bytes. |
 
+`--strict` promotes that drift warning to exit code 1. The publish still
+happens first: the delivered bytes are what you need in order to see how the
+frame was substituted, so withholding them would make the failure harder to
+diagnose, not safer. The exit code — not the file's existence — is the signal a
+caller should branch on.
+
 Output stem: `{output_dir}/{family_key}_{slug(headline)}`. The extension is not
 known until the bytes arrive — Grok returns JPEG, `gpt-image-1` returns PNG —
 so the artifact is named after what actually landed. Nothing is re-encoded, and
@@ -864,8 +895,9 @@ all. A `.part` survives only if the rename itself fails.
 `--image-url` and `--image-file` are a mutually exclusive argparse group.
 Progress lines print with `flush=True`.
 
-**Returns** `0` in both branches. Argparse errors exit 2. Guard failures from
-`download` or `load_local` propagate as tracebacks.
+**Returns** `0`, or `1` when `--strict` is set and the frame drifted. Argparse
+errors exit 2. Guard failures from `download` or `load_local` propagate as
+tracebacks.
 
 ---
 

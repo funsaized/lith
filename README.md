@@ -210,8 +210,12 @@ With `--recipe`, the recipe's `model` and `n` win and `--model` / `--n` are
 ignored; `--seed`, `--out`, `--call`, and `--emit-json` still apply.
 
 Envelope fields, in order: `prompt`, `negative_prompt`, `aspect_ratio`,
-`model`, `n`, `seed`, `output_path`, `style`, `aspect_note`.
-`aspect_note` is `null` unless the model forced a different ratio.
+`model`, `n`, `seed`, `output_path`, `style`, `aspect_note`, `copy_note`.
+`aspect_note` is `null` unless the model forced a different ratio. `copy_note`
+is `null` unless the copy block is too thin for the template around it — a
+brief with no `sections` renders about sixteen characters of copy against
+fifteen hundred of instructions, and the model starts lettering the
+instructions instead.
 
 ```bash
 uv run lith-generate --recipe recipes/live_test_recipe.json --call --emit-json
@@ -235,13 +239,22 @@ lith-run --recipe PATH [--image-url URL | --image-file PATH] [options]
 | `--image-url` | url | — | HTTP(S) URL of the generated image. Mutually exclusive with `--image-file`. |
 | `--image-file` | path | — | Local generated image. Mutually exclusive with `--image-url`. |
 | `--output-dir` | path | beside the recipe | Directory for the published file. Defaults to the recipe's sibling `outputs/`, not the cwd. |
+| `--strict` | flag | off | Exit 1 when the delivered frame does not match the request. The file is still published. |
 
 Two modes:
 
 | Condition | Behavior |
 |---|---|
 | No `--image-url` and no `--image-file` | Prints recipe, family, style, aspect, model, prompt, and output path; exits 0. Nothing is written. |
-| Image source | Writes the image to the recipe's output path, extension sniffed from the bytes; exits 0. |
+| Image source | Writes the image to the recipe's output path, extension sniffed from the bytes; exits 0, or 1 under `--strict` if the frame drifted. |
+
+`lith-run` is the only step that compares the delivered frame against the one
+the prompt was composed for, so it is the only place a silently substituted
+ratio becomes visible. Without `--strict` that comparison is a `[warn]` line on
+stdout and the command still exits 0 — fine when a person is reading the
+output, useless to a sweep script scraping exit codes. Pass `--strict` in
+batches. The image is published either way, because the bytes are the evidence
+you need to diagnose the substitution.
 
 `--image-url` fetches under four guards: HTTP(S) schemes only, re-checked after
 redirects; 30-second timeout; 25 MB ceiling enforced while streaming; and a

@@ -168,6 +168,15 @@ real capability set before the call, and compares the published image's actual
 dimensions against the request afterward — the layout in the prompt was composed
 for the frame that was asked for.
 
+**Nor is the tool that makes the call.** Clamping only binds whoever honors the
+envelope. A generation tool that accepts `aspect_ratio`, `model` and
+`negative_prompt` and then quietly drops them still returns an image, so the
+run looks clean while the envelope was discarded. Of the five fields, the frame
+is the only one lith can check from the returned bytes, which is why `--strict`
+exists: it turns that one check into an exit code a batch cannot scroll past.
+The other four are unverifiable downstream and have to be confirmed against the
+tool's own documentation.
+
 `--image-file` skips the network guards but keeps the magic-byte check, since a
 local path is your own. Either way the bytes land on a `.part` file first and
 are renamed only once the format is known — not for crash safety but because

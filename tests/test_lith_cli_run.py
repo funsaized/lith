@@ -93,6 +93,44 @@ def test_image_size_reads_jpeg_and_png_headers():
     assert _image_size(b"RIFF____WEBP") is None  # unparsed on purpose
 
 
+def test_strict_exits_nonzero_on_frame_drift(tmp_path):
+    """A warning alone let 18 reframed images publish as a clean sweep."""
+    # The recipe asks 16:9; hand it a 9:16 portrait.
+    src = tmp_path / "candidate.png"
+    src.write_bytes(
+        b"\x89PNG\r\n\x1a\n" + b"\x00" * 8
+        + (720).to_bytes(4, "big") + (1280).to_bytes(4, "big")
+    )
+    argv = [sys.executable, "-m", "lith.cli.run",
+            "--recipe", str(REPO / "recipes" / "live_test_recipe.json"),
+            "--output-dir", str(tmp_path / "out"), "--image-file", str(src)]
+
+    lax = subprocess.run(argv, capture_output=True, text=True)
+    assert lax.returncode == 0
+    assert "aspect:" in lax.stdout
+
+    strict = subprocess.run(argv + ["--strict"], capture_output=True, text=True)
+    assert strict.returncode == 1, strict.stdout
+    # Published anyway: the bytes are the evidence for diagnosing the drift.
+    assert (tmp_path / "out" / "B_brutalist_32_langs.png").is_file()
+
+
+def test_strict_stays_silent_when_the_frame_matches(tmp_path):
+    src = tmp_path / "candidate.png"
+    src.write_bytes(
+        b"\x89PNG\r\n\x1a\n" + b"\x00" * 8
+        + (1280).to_bytes(4, "big") + (720).to_bytes(4, "big")
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "lith.cli.run",
+         "--recipe", str(REPO / "recipes" / "live_test_recipe.json"),
+         "--output-dir", str(tmp_path / "out"), "--image-file", str(src),
+         "--strict"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stdout
+
+
 def test_aspect_mismatch_flags_a_silent_substitution():
     from lith.cli.run import aspect_mismatch
 

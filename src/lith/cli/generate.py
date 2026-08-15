@@ -90,8 +90,9 @@ def main() -> int:
         )
 
     rendered = render_prompt(style, brief, model=model)
-    if rendered["aspect_note"]:
-        print(f"warning: {rendered['aspect_note']}", file=sys.stderr, flush=True)
+    for note in (rendered["aspect_note"], rendered["copy_note"]):
+        if note:
+            print(f"warning: {note}", file=sys.stderr, flush=True)
 
     if args.call:
         envelope = {
@@ -106,6 +107,7 @@ def main() -> int:
             # Machine-visible too: an agent consuming the envelope should not
             # have to read stderr to learn the ratio was substituted.
             "aspect_note": rendered["aspect_note"],
+            "copy_note": rendered["copy_note"],
         }
         if args.emit_json:
             print(json.dumps(envelope, indent=2))

@@ -46,6 +46,26 @@ def format_spec(brief: dict[str, Any]) -> str:
 
 
 
+def copy_note(spec: str, prompt: str) -> str | None:
+    """Warn when the copy block is too thin to hold the model's attention.
+
+    The template is a fixed cost — palette, mood, layout preamble — and the
+    spec block is the only part that varies. When the spec is a single title
+    line the model has almost nothing to letter and starts lettering the
+    instructions instead: real output has printed palette hex codes and mood
+    lines as if they were headings. Rendering still succeeds, because a
+    title-only poster is a legitimate thing to ask for.
+    """
+    instructions = len(prompt) - len(spec)
+    if len(spec) * 20 >= instructions:
+        return None
+    return (
+        f"copy block is {len(spec)} chars against {instructions} chars of "
+        "instructions; the model may letter template wording instead. Add "
+        "sections, or expect a title-only poster"
+    )
+
+
 def render_prompt(
     style: dict[str, Any] | Recipe,
     brief: dict[str, Any] | None = None,
@@ -70,6 +90,7 @@ def render_prompt(
         raise TypeError("brief is required when style is a mapping")
 
     aspect, aspect_note = resolve_aspect(brief, style, model)
+    spec = format_spec(brief)
     width_over_height = ratio(aspect)
     landscape = bool(width_over_height and width_over_height > 1.2)
 
@@ -85,7 +106,7 @@ def render_prompt(
         ),
         accent=_palette_value(brief.get("accent") or palette.get("accent"), "#00E5FF"),
         volume=brief.get("volume", "1"),
-        spec=format_spec(brief),
+        spec=spec,
         layout=format_layout(brief, landscape=landscape),
     )
     return {
@@ -94,4 +115,5 @@ def render_prompt(
         "aspect_ratio": str(aspect),
         "style": str(style["name"]),
         "aspect_note": aspect_note,
+        "copy_note": copy_note(spec, prompt),
     }

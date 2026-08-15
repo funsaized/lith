@@ -7,12 +7,14 @@ a live sweep costs money, but the prompt-side contract can be verified free.
 
 import json
 import pathlib
+import re
 
 import pytest
 
-from lith import load_recipe, render_prompt
+from lith import load_recipe, output_path, render_prompt
 from lith.aspect import MODEL_ASPECTS, ratio
 from lith.layout import ARRANGEMENTS, DIAGRAM_POSITIONS
+from lith.styles import get_family, load_styles
 
 BED = pathlib.Path(__file__).resolve().parents[1] / "recipes" / "integration"
 RECIPES = sorted(BED.glob("*.json"))
@@ -132,7 +134,7 @@ def test_generate_cli_emits_an_envelope(path, monkeypatch, capsys):
     envelope = json.loads(capsys.readouterr().out)
     assert set(envelope) == {
         "prompt", "negative_prompt", "aspect_ratio", "model", "n", "seed",
-        "output_path", "style", "aspect_note",
+        "output_path", "style", "aspect_note", "copy_note",
     }
     assert envelope["model"] == json.loads(path.read_text())["model"]
     assert envelope["n"] == 2
@@ -239,3 +241,64 @@ def test_run_publishes_png_bytes_under_a_png_name(monkeypatch, tmp_path):
     assert rc == 0
     assert len(list(out.glob("*.png"))) == 1
     assert not list(out.glob("*.jpg"))
+
+
+# --- L1: contract checks that need no model call --------------------------
+# Each of these locks a defect that a live sweep found only after paying for
+# 68 generations, and that was visible in the rendered prompt all along.
+
+# A quoted example of a *wrong* rendering is still text in the prompt. On a
+# sparse brief the model lettered F_woodcut's counter-examples verbatim.
+CONTENTISH = re.compile(r"\b\w+\.(?:com|dev|io|net|org)\b|\b[A-Z]{2,}-\d")
+
+
+def test_no_style_template_carries_letterable_example_copy():
+    for key, family in load_styles()["families"].items():
+        text = family["prompt_template"]
+        # Slots are filled from the brief; only the literal template is ours.
+        literal = text.replace("{spec}", "").replace("{layout}", "")
+        found = CONTENTISH.findall(literal)
+        assert not found, (
+            f"{key} embeds content-like literals {found}; a sparse brief will "
+            "letter them as if they were spec copy"
+        )
+
+
+def test_sparse_briefs_are_flagged_and_dense_ones_are_not():
+    from lith.render import copy_note
+
+    sparse = {"topic": "t", "headline": "TAILSCALE", "icon": "lightning",
+              "sections": []}
+    note = render_prompt(get_family(load_styles(), "A"), sparse)["copy_note"]
+    assert note and "letter template wording" in note
+
+    for path in RECIPES:
+        recipe = load_recipe(path)
+        rendered = render_prompt(recipe)
+        if recipe.brief.get("sections"):
+            assert rendered["copy_note"] is None, (
+                f"{path.stem} has sections but was flagged: {rendered['copy_note']}"
+            )
+        else:
+            assert rendered["copy_note"], f"{path.stem} is empty but unflagged"
+
+    # The ratio, not the raw length, is what matters: a long template needs
+    # proportionally more copy to hold the model.
+    assert copy_note("x" * 100, "x" * 100 + "i" * 2001).startswith("copy block is ")
+    assert copy_note("x" * 100, "x" * 100 + "i" * 1999) is None
+
+
+def test_testbed_output_stems_collide_so_a_sweep_must_isolate_them():
+    """34 recipes share the headline TAILSCALE; they do not get 34 paths.
+
+    This is `output_path` working as documented, not a bug — but a sweep that
+    publishes them all into one directory keeps 7 files and loses 27, which is
+    exactly what pushed an earlier harness into bypassing lith-run entirely.
+    """
+    stems = {
+        output_path(pathlib.Path("/out"), load_recipe(p).family_key,
+                    load_recipe(p).brief["headline"], "").name
+        for p in RECIPES
+    }
+    assert len(stems) < len(RECIPES)
+    assert len(stems) == 7, f"one stem per family expected, got {sorted(stems)}"

@@ -161,6 +161,12 @@ def main() -> int:
     image_source.add_argument(
         "--image-file", type=pathlib.Path, help="Local raw generated image path"
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Exit 1 when the delivered frame does not match the request. "
+        "The file is still published, since the bytes are the evidence.",
+    )
     args = parser.parse_args()
 
     recipe = load_recipe(args.recipe)
@@ -177,8 +183,9 @@ def main() -> int:
         print(f"[family]      {recipe.family_key}", flush=True)
         print(f"[style]       {rendered['style']}", flush=True)
         print(f"[aspect]      {rendered['aspect_ratio']}", flush=True)
-        if rendered["aspect_note"]:
-            print(f"[warn]        {rendered['aspect_note']}", flush=True)
+        for note in (rendered["aspect_note"], rendered["copy_note"]):
+            if note:
+                print(f"[warn]        {note}", flush=True)
         print(f"[model]       {recipe.model} (n={recipe.n})", flush=True)
         print("[prompt]", flush=True)
         for line in rendered["prompt"].splitlines():
@@ -204,8 +211,17 @@ def main() -> int:
     if drift:
         print(f"[warn]        aspect: {drift}", flush=True)
     completed = stem.with_suffix(_image_ext(body[:12]))
+    # Output paths key on family and headline only, so a sweep whose recipes
+    # share a headline silently collapses onto one file per family.
+    if completed.exists():
+        print(f"[warn]        overwriting {completed.name}", flush=True)
     staged.replace(completed)
     print(f"[done]        {completed}", flush=True)
+    # A warning on stdout is invisible to a sweep script scraping exit codes,
+    # which is how 18 reframed images once published as a clean run.
+    if drift and args.strict:
+        print("[fail]        strict: delivered frame does not match", flush=True)
+        return 1
     return 0
 
 

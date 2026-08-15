@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tech Image Pipeline"
+  short_description: "Generate brand-consistent tech social images"
+  default_prompt: "Use $tech-image-pipeline to generate a brand-consistent image for my tech announcement."

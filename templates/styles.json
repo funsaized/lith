@@ -1,0 +1,111 @@
+{
+  "version": "1.0.0",
+  "description": "Seven style-family templates parameterized for image generation. Each template has slots that get filled by the brief.",
+  "families": {
+    "A_sticker": {
+      "name": "Sticker / Whisper-joke infographic",
+      "best_for": ["quick reactions", "ship announcements", "POV jokes"],
+      "default_aspect": "16:9",
+      "palette": {
+        "background": "#050505",
+        "accent": ["#FF2E88", "#00E5FF", "#F2FF00", "#FF6B35"],
+        "text": "#FFFFFF"
+      },
+      "negative_prompt": "photorealistic, 3D render, gradient, glossy, chrome, anime screencap, stock photo",
+      "prompt_template": "Sticker-sheet composition, 4-6 hand-cut sticker-style shapes on a solid black background (#050505). Each sticker is a brightly colored flat 2D shape (circle, rounded rectangle, badge) with a single phrase or icon. Decorative elements: hand-drawn arrows, sparkles, comic-book bursts. Headline: '{headline}' in giant sans-serif all-caps Helvetica Neue Black at 12% of frame height. Subtext in handwritten marker font. Palette: black + one accent from {accent}. White reverses for text. Mood: tweetable, memetic, sticker-pack energy.",
+      "iconography": ["lightning", "sparkle", "POW burst", "sweat drop", "eye", "fire"]
+    },
+    "B_brutalist": {
+      "name": "Sci-fi brutalist UI",
+      "best_for": ["feature flagships", "capability reveals", "new ships"],
+      "default_aspect": "16:9",
+      "palette": {
+        "background": "#000000",
+        "accent": "#00E5FF",
+        "callout": "#FF3030",
+        "text": "#FFFFFF"
+      },
+      "negative_prompt": "pastel, soft, organic, photographic, gradient backgrounds, drop shadows, 3D rendered, anime",
+      "prompt_template": "Single black panel, 16:9. Center-aligned massive HUD-style text. Background: pure black #000000 with a 1px cyan grid line at 8% opacity. Headline: '{headline}' in 180px monospaced all-caps (JetBrains Mono Bold or Space Mono Bold) in white. Subtext in cyan #00E5FF at 24px, justified-left, with red #FF3030 inline emphasis markers like [SYSTEM] or [NEW]. Optional: a single subtle silhouette of a {icon} at 20% opacity bottom-right. Mood: hacker terminal, mission control.",
+      "iconography": ["tie-fighter", "saturn-v", "geodesic dome", "robot", "satellite", "circuit"]
+    },
+    "C_patent": {
+      "name": "Vintage technical manual / patent diagram",
+      "best_for": ["how-it-works", "educational threads", "engineering reveals"],
+      "default_aspect": "4:5",
+      "palette": {
+        "background": "#E8DCC4",
+        "ink": "#1A1A1A",
+        "accent": ["#C2410C", "#1E40AF"],
+        "grain": true
+      },
+      "negative_prompt": "modern, glossy, neon, gradient, photographic, 3D, screen UI",
+      "prompt_template": "Sepia paper background (#E8DCC4), fine ink-line drawing in #1A1A1A. Centered technical illustration of a {icon}. Border: thin double-rule with ornate corner ornaments (fleurons, sunbursts). Blue or red ink highlights for arrows, measurements, callouts. Top: small all-caps 'TECHNICAL MANUAL — VOLUME {volume}' in serif (Times, Caslon) with the headline '{headline}' below it in a slightly larger serif. Bottom: 2-3 numbered callouts in the same serif pointing into the diagram with thin lines. Patent-style 'FIG. 1' labels. Aged feel — slight grain, vignette, light tea-stain discoloration near corners. Mood: NASA 1962, an Edwardian engineer's notebook.",
+      "iconography": ["telescope", "wrench", "gear", "compass", "rocket", "hand", "gauge"]
+    },
+    "D_manga": {
+      "name": "Manga tape-insert / risograph",
+      "best_for": ["release announcements", "chapter framing", "viral moments"],
+      "default_aspect": "1:1",
+      "palette": {
+        "background": ["#FFD700", "#FF2E88", "#00E5FF"],
+        "ink": "#000000",
+        "accent": ["#FFFFFF", "#FF2E88"]
+      },
+      "negative_prompt": "photorealistic, 3D, gradient, glossy, watercolor, soft shading",
+      "prompt_template": "Single bold flat-color background ({base_color}). Centered hand-drawn illustration in thick manga-line style (5-8px outlines, flat fills, no gradients). Screen-tone dots for shading. Headline: '{headline}' in chunky display font (Cooper Black or Hipsteria), 200px+, slightly rotated. Subtitle in same font, half-size. Speech-bubble or thought-bubble for emphasis. Risograph overprint effect — slight 2-3px registration offset where colors overlap. Mood: bangers, manga chapter titles, a T-shirt you would buy without hesitation.",
+      "iconography": ["lightning", "explosion", "starburst", "fist", "rocket", "eye"]
+    },
+    "E_screenshot": {
+      "name": "Editorial screenshot polish",
+      "best_for": ["UI demos", "product launches", "see-what-we-built"],
+      "default_aspect": "16:9",
+      "palette": {
+        "background_gradient": ["#1A0B2E", "#2D1B69", "#0F172A"],
+        "glow": "#7C3AED",
+        "text": "#FFFFFF"
+      },
+      "negative_prompt": "hand-drawn, sketch, vintage, cluttered, busy, multiple screenshots",
+      "prompt_template": "Centered product screenshot (terminal, app, IDE) on a deep gradient background (#1A0B2E to #0F172A). Radial vignette glow behind the screenshot in electric purple #7C3AED at 30% opacity. Headline: '{headline}' in Inter Bold or SF Pro Display, white. Each screenshot bordered with a 2px white outline at 10% opacity and a 48px corner-radius. Subtle reflection drop-shadow below. Mood: App Store feature graphic, Apple keynote slide, a product launch on the front page of The Verge.",
+      "iconography": ["terminal", "ide", "dashboard", "graph", "rocket", "iPhone"]
+    },
+    "F_woodcut": {
+      "name": "Woodcut / analog engraving",
+      "best_for": ["sponsor announcements", "team memos", "gravitas posts"],
+      "default_aspect": "4:5",
+      "palette": {
+        "background": "#F4ECD8",
+        "ink": "#1A1A1A",
+        "accent": "#8B2A1F"
+      },
+      "negative_prompt": "modern, neon, gradient, photographic, 3D, glossy, soft, pastel",
+      "prompt_template": "Cream paper background (#F4ECD8) with subtle deckle edge. Single black-on-cream illustration in the style of a 19th-century engraving: cross-hatched shading, fine parallel lines, bold silhouette. Subject: a {icon}. Headline: '{headline}' in heavy serif (Bodoni, Caslon). Body text in old-style serif (Garamond) justified to a single column. Drop-cap on the first letter. Occasional #8B2A1F blood-red ink for emphasis. Mood: pirate broadside, 1880s newspaper, a manifesto from a candlelit workshop.",
+      "iconography": ["skull", "quill", "gear", "press", "sigil", "newspaper"]
+    },
+    "G_log": {
+      "name": "Role-log / status dashboard",
+      "best_for": ["operational posts", "stats announcements", "build-in-public"],
+      "default_aspect": "16:9",
+      "palette": {
+        "background": "#0A0E1A",
+        "panel": "#06141F",
+        "text_primary": "#E5E7EB",
+        "text_secondary": "#9CA3AF",
+        "text_tertiary": "#6B7280",
+        "highlight": "#10B981",
+        "accent": "#00E5FF"
+      },
+      "negative_prompt": "photographic, 3D, hand-drawn, colorful, gradient, busy",
+      "prompt_template": "Dark background (#0A0E1A). Centered 'terminal' panel with rounded corners and subtle glow. Inside: monospaced log lines with timestamps, agent IDs, status badges, low-saturation status colors. One line in the middle is highlighted (rendered as a 'successful' event) with a soft cyan glow. Headline: '{headline}' in JetBrains Mono Regular at 18-22px. Logger-style timestamps in #6B7280, agent IDs in #9CA3AF, log messages in #E5E7EB, success highlights in #10B981. Mood: Datadog, a Vercel deploy log, a Sentry incident summary.",
+      "iconography": ["terminal", "checkmark", "graph", "metrics", "agent-id", "badge"]
+    }
+  },
+  "rules": {
+    "max_accent_colors": 3,
+    "max_words_in_image": 3,
+    "always_oversize_headline": true,
+    "always_one_decorative_motif": true,
+    "prefer_asymmetric_composition": true,
+    "always_one_idea_per_image": true
+  }
+}

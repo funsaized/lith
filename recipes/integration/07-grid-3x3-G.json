@@ -1,0 +1,87 @@
+{
+  "name": "integration-07-grid-3x3-G",
+  "description": "Integration testbed row: family G, model grok-imagine-image-2.0.",
+  "style": "G",
+  "model": "grok-imagine-image-2.0",
+  "n": 2,
+  "brief": {
+    "topic": "private tailscale mesh across three machines",
+    "headline": "TAILSCALE",
+    "icon": "lightning",
+    "sections": [
+      {
+        "heading": "01 - THE HUB",
+        "lines": [
+          "Mac mini M4, always on",
+          "Runs every long-lived job",
+          "Wakes on LAN if it sleeps"
+        ]
+      },
+      {
+        "heading": "02 - THE MESH",
+        "lines": [
+          "Tailscale WireGuard overlay",
+          "MINI, AIR and NZXT peered direct",
+          "No open ports, no forwarding"
+        ]
+      },
+      {
+        "heading": "03 - THE SESSION",
+        "lines": [
+          "mosh survives every dropped link",
+          "herdr holds agent sessions open"
+        ]
+      },
+      {
+        "heading": "04 - INGRESS",
+        "lines": [
+          "Caddy fronts *.dev.s11a.com",
+          "ACME DNS-01 through Netlify",
+          "Certificates renew unattended"
+        ]
+      },
+      {
+        "heading": "05 - THE GUARDS",
+        "lines": [
+          "MagicDNS resolves every node",
+          "ACLs scope each device"
+        ]
+      },
+      {
+        "heading": "06 - THE RESULT",
+        "lines": [
+          "One laptop, one desktop, one box",
+          "Reachable from anywhere",
+          "Zero cloud bill"
+        ]
+      },
+      {
+        "heading": "07 - BACKUP",
+        "lines": [
+          "Restic snapshots hourly",
+          "Off-site to B2"
+        ]
+      },
+      {
+        "heading": "08 - MONITORING",
+        "lines": [
+          "Uptime Kuma on the mini",
+          "Alerts to Discord"
+        ]
+      },
+      {
+        "heading": "09 - THE COST",
+        "lines": [
+          "One-time hardware spend",
+          "No monthly bill"
+        ]
+      }
+    ],
+    "subtitle": "A PRIVATE CLOUD IN THREE MACHINES",
+    "diagram": "A central cloud labeled TAILSCALE with three lines running down to boxes labeled MINI, AIR and NZXT",
+    "footer": "s11a.com",
+    "layout": "grid-3x3",
+    "aspect": "3:2",
+    "diagram_position": "beside"
+  }
+}

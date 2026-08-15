@@ -1,0 +1,13 @@
+{
+  "name": "integration-25-sparse-title-only",
+  "description": "Integration testbed row: family F, model grok-imagine-image-2.0.",
+  "style": "F",
+  "model": "grok-imagine-image-2.0",
+  "n": 2,
+  "brief": {
+    "topic": "private tailscale mesh across three machines",
+    "headline": "TAILSCALE",
+    "icon": "lightning",
+    "sections": []
+  }
+}

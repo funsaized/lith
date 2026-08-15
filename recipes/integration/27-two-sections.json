@@ -1,0 +1,33 @@
+{
+  "name": "integration-27-two-sections",
+  "description": "Integration testbed row: family A, model grok-imagine-image-2.0.",
+  "style": "A",
+  "model": "grok-imagine-image-2.0",
+  "n": 2,
+  "brief": {
+    "topic": "private tailscale mesh across three machines",
+    "headline": "TAILSCALE",
+    "icon": "lightning",
+    "sections": [
+      {
+        "heading": "01 - THE HUB",
+        "lines": [
+          "Mac mini M4, always on",
+          "Runs every long-lived job",
+          "Wakes on LAN if it sleeps"
+        ]
+      },
+      {
+        "heading": "02 - THE MESH",
+        "lines": [
+          "Tailscale WireGuard overlay",
+          "MINI, AIR and NZXT peered direct",
+          "No open ports, no forwarding"
+        ]
+      }
+    ],
+    "subtitle": "A PRIVATE CLOUD IN THREE MACHINES",
+    "diagram": "A central cloud labeled TAILSCALE with three lines running down to boxes labeled MINI, AIR and NZXT",
+    "footer": "s11a.com"
+  }
+}

@@ -31,6 +31,7 @@ def test_download_rejects_oversized_response(tmp_path):
     from scripts.run import download
 
     fake = MagicMock()
+    fake.url = "http://example.com/huge.jpg"
     fake.headers = {"Content-Type": "image/jpeg"}
     big = b"\xff\xd8\xff" + b"x" * (1024 * 1024)
 
@@ -44,3 +45,16 @@ def test_download_rejects_oversized_response(tmp_path):
     with patch("urllib.request.urlopen", return_value=fake):
         with pytest.raises(ValueError, match="exceeds"):
             download("http://example.com/huge.jpg", tmp_path / "x.jpg")
+
+
+def test_download_rejects_redirect_to_disallowed_scheme(tmp_path):
+    from scripts.run import download
+
+    fake = MagicMock()
+    fake.url = "ftp://example.com/image.jpg"
+    fake.__enter__ = lambda self: self
+    fake.__exit__ = lambda self, *args: None
+
+    with patch("urllib.request.urlopen", return_value=fake):
+        with pytest.raises(ValueError, match="refusing redirected scheme 'ftp'"):
+            download("https://example.com/image.jpg", tmp_path / "x.jpg")

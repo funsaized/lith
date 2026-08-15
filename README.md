@@ -304,6 +304,8 @@ Every generation — regardless of family — must include these six slots. Fill
 
 ## 5. The full pipeline, end-to-end
 
+> **Design target only:** This section describes the intended full pipeline; see §7 for what runs today and §9 for implementation status.
+
 ### Step 1 — Brief
 For each post, run this intake:
 

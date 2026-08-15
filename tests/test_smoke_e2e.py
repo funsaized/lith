@@ -45,6 +45,9 @@ def test_driver_reproduces_reference_within_tolerance(tmp_path):
     assert result.returncode == 0, f"driver failed: {result.stderr}"
     assert final_png.exists(), f"expected {final_png} to exist"
     assert final_png.stat().st_size > 0
+    assert result.stdout.index("[copy]") < result.stdout.index(str(final_png)), (
+        f"driver log order is misleading under capture: {result.stdout}"
+    )
 
     comparison = subprocess.run(
         [

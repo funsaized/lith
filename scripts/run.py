@@ -66,6 +66,12 @@ def download(url: str, dst: pathlib.Path) -> pathlib.Path:
         url, headers={"User-Agent": "tech-image-pipeline/1.0"}
     )
     with urllib.request.urlopen(req, timeout=DOWNLOAD_TIMEOUT) as response:
+        response_scheme = urllib.parse.urlsplit(response.url).scheme.lower()
+        if response_scheme not in ALLOWED_SCHEMES:
+            raise ValueError(
+                f"refusing redirected scheme {response_scheme!r}; "
+                f"allowed: {ALLOWED_SCHEMES}"
+            )
         chunks = []
         total = 0
         for chunk in response:
@@ -128,18 +134,19 @@ def main() -> int:
     )
 
     if not args.image_url and not args.image_file:
-        print(f"[recipe]      {args.recipe}")
-        print(f"[family]      {recipe.family_key}")
-        print(f"[style]       {rendered['style']}")
-        print(f"[aspect]      {rendered['aspect_ratio']}")
-        print(f"[model]       {recipe.model} (n={recipe.n})")
-        print("[prompt]")
+        print(f"[recipe]      {args.recipe}", flush=True)
+        print(f"[family]      {recipe.family_key}", flush=True)
+        print(f"[style]       {rendered['style']}", flush=True)
+        print(f"[aspect]      {rendered['aspect_ratio']}", flush=True)
+        print(f"[model]       {recipe.model} (n={recipe.n})", flush=True)
+        print("[prompt]", flush=True)
         for line in rendered["prompt"].splitlines():
-            print(f"  {line}")
-        print(f"[output]      {out_final}")
+            print(f"  {line}", flush=True)
+        print(f"[output]      {out_final}", flush=True)
         print(
             "Next: call image_generate with the prompt, then re-run with "
-            "--image-url or --image-file."
+            "--image-url or --image-file.",
+            flush=True,
         )
         return 0
 
@@ -148,21 +155,24 @@ def main() -> int:
     )
 
     if args.image_url:
-        print(f"[download]    {args.image_url} -> {raw}")
+        print(f"[download]    {args.image_url} -> {raw}", flush=True)
         download(args.image_url, raw)
     else:
-        print(f"[copy]        {args.image_file} -> {raw}")
+        print(f"[copy]        {args.image_file} -> {raw}", flush=True)
         load_local(args.image_file, raw)
 
     if not args.line:
-        print("[warn]        no --line supplied; writing raw only (no overlay)")
+        print(
+            "[warn]        no --line supplied; writing raw only (no overlay)",
+            flush=True,
+        )
         completed = raw
     else:
         overlay_kwargs = {"font": args.font} if args.font else {}
         overlay_typography(raw, out_final, lines=args.line, **overlay_kwargs)
         completed = out_final
 
-    print(f"[done]        {completed}")
+    print(f"[done]        {completed}", flush=True)
     return 0
 
 

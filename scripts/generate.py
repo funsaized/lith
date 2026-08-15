@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""Render a brief into a prompt and image-generation plan.
+
+Pure CLI mode (default) prints the rendered prompt and exits. ``--call``
+emits a call envelope for a Hermes session or operator; pair it with
+``--emit-json`` for machine-readable output.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import pathlib
+import sys
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from scripts.pipeline.paths import output_path
+from scripts.pipeline.recipe import FAMILY_KEYS, load_recipe
+from scripts.pipeline.render import render_prompt
+from scripts.pipeline.styles import get_family, load_styles
+
+STYLES_PATH = ROOT / "templates" / "styles.json"
+
+
+def build_brief(args: argparse.Namespace) -> dict:
+    return {
+        "topic": args.topic,
+        "headline": args.headline,
+        "icon": args.icon,
+        "aspect": args.aspect,
+        "volume": "1",
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Render a brief into a prompt.")
+    parser.add_argument("--recipe", type=pathlib.Path)
+    parser.add_argument("--topic")
+    parser.add_argument("--style", choices=list("ABCDEFG"))
+    parser.add_argument("--aspect", choices=["16:9", "4:5", "1:1", "9:16"])
+    parser.add_argument("--headline")
+    parser.add_argument("--icon", default="gear")
+    parser.add_argument("--n", type=int, default=4)
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument(
+        "--model",
+        default="grok-imagine-image-quality",
+        choices=[
+            "grok-imagine-image-quality",
+            "grok-imagine-image",
+            "gpt-image-1",
+            "minimax-image",
+        ],
+    )
+    parser.add_argument("--out", type=pathlib.Path)
+    parser.add_argument(
+        "--call", action="store_true", help="Emit call envelope instead of just printing"
+    )
+    parser.add_argument(
+        "--emit-json", action="store_true", help="With --call, emit machine-readable JSON"
+    )
+    args = parser.parse_args()
+
+    styles = load_styles(STYLES_PATH)
+
+    if args.recipe:
+        recipe = load_recipe(args.recipe)
+        style = get_family(styles, recipe.style)
+        brief = recipe.brief
+        n = recipe.n
+        model = recipe.model
+        out = args.out or output_path(
+            ROOT / "outputs", recipe.family_key, brief["headline"], ".png"
+        )
+    else:
+        for required in ("topic", "style", "headline"):
+            if not getattr(args, required):
+                parser.error(f"--{required} required when --recipe not used")
+        style = get_family(styles, args.style)
+        brief = build_brief(args)
+        n = args.n
+        model = args.model
+        out = args.out or output_path(
+            ROOT / "outputs", FAMILY_KEYS[args.style], brief["headline"], ".png"
+        )
+
+    rendered = render_prompt(style, brief)
+
+    if args.call:
+        envelope = {
+            "prompt": rendered["prompt"],
+            "negative_prompt": rendered["negative_prompt"],
+            "aspect_ratio": rendered["aspect_ratio"],
+            "model": model,
+            "n": n,
+            "seed": args.seed,
+            "output_path": str(out),
+            "style": rendered["style"],
+        }
+        if args.emit_json:
+            print(json.dumps(envelope, indent=2))
+        else:
+            for key, value in envelope.items():
+                print(f"{key}={value}")
+        return 0
+
+    print(f"[brief]       {brief}")
+    print(f"[style]       {rendered['style']}")
+    print(f"[aspect]      {rendered['aspect_ratio']}")
+    print("[prompt]")
+    for line in rendered["prompt"].splitlines():
+        print(f"  {line}")
+    print(f"[negative]    {rendered['negative_prompt']}")
+    print(f"[plan]        {n} candidates via {model}, seed={args.seed}")
+    print(f"[output]      {out}")
+    print("Next: pass --call to emit the envelope for image_generate.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

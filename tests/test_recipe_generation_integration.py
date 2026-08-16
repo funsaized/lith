@@ -8,7 +8,7 @@ import sys
 import pytest
 
 from lith import expand_brief, recipe_from_brief, render_prompt, validate_brief
-from lith.cli import generate as generate_cli
+from lith.cli import plate as plate_cli
 
 
 FIXTURE = pathlib.Path(__file__).parent / "fixtures" / "fake_brief_llm.py"
@@ -54,9 +54,9 @@ def test_generated_brief_validates_renders_and_reaches_generate_envelope(
     monkeypatch.setattr(
         sys,
         "argv",
-        ["lith-generate", "--recipe", str(path), "--call", "--emit-json"],
+        ["lith-plate", "--recipe", str(path), "--press", "--emit-json"],
     )
-    assert generate_cli.main() == 0
+    assert plate_cli.main() == 0
     envelope = json.loads(capsys.readouterr().out)
     assert envelope["prompt"] == rendered["prompt"]
     assert envelope["model"] == recipe.model

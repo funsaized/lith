@@ -11,8 +11,8 @@ from lith import load_recipe, render_prompt
 from lith.call import CallResult, Candidate, ImageRequest
 from lith.call.capability import provider_for_model
 from lith.call.creds import Credential
-from lith.cli import call as call_cli
-from lith.cli.call import request_preview
+from lith.cli import press as press_cli
+from lith.cli.press import request_preview
 
 
 PROVIDER_VARIABLES = ("XAI_API_KEY", "OPENAI_API_KEY", "MINIMAX_API_KEY")
@@ -52,8 +52,8 @@ def _recipe(tmp_path, *, model="grok-imagine-image-2.0", aspect="2:3"):
 
 
 def _main(monkeypatch, *argv):
-    monkeypatch.setattr(sys, "argv", ["lith-call", *map(str, argv)])
-    return call_cli.main()
+    monkeypatch.setattr(sys, "argv", ["lith-press", *map(str, argv)])
+    return press_cli.main()
 
 
 def _png(width=20, height=30):
@@ -84,8 +84,8 @@ def test_dry_run_prints_exact_xai_request_without_auth_or_network(
     def forbidden(*args, **kwargs):
         raise AssertionError("dry-run resolved credentials or made a live call")
 
-    monkeypatch.setattr(call_cli, "resolve_credential", forbidden)
-    monkeypatch.setattr(call_cli, "generate", forbidden)
+    monkeypatch.setattr(press_cli, "resolve_credential", forbidden)
+    monkeypatch.setattr(press_cli, "generate", forbidden)
     assert _main(
         monkeypatch,
         "--recipe", path,
@@ -215,16 +215,16 @@ def test_hermes_model_parser_is_nested_quoted_and_config_precedes_env(tmp_path):
         "  provider: xai\n"
         "  model: 'grok-imagine-image-2.0' # active\n"
     )
-    assert call_cli.hermes_active_model(
+    assert press_cli.hermes_active_model(
         home=home, environ={"FAL_IMAGE_MODEL": "fallback-model"}
     ) == ("grok-imagine-image-2.0", "~/.hermes/config.yaml:image_gen.model")
 
 
 def test_hermes_model_parser_falls_back_to_fal_image_model(tmp_path):
-    assert call_cli.hermes_active_model(
+    assert press_cli.hermes_active_model(
         home=tmp_path, environ={"FAL_IMAGE_MODEL": "fal-ai/flux"}
     ) == ("fal-ai/flux", "FAL_IMAGE_MODEL")
-    assert call_cli.hermes_active_model(home=tmp_path, environ={}) == (
+    assert press_cli.hermes_active_model(home=tmp_path, environ={}) == (
         None,
         "not configured",
     )
@@ -234,15 +234,15 @@ def test_hermes_model_parser_falls_back_to_fal_image_model(tmp_path):
     ("active", "aspect", "route", "reason_parts"),
     [
         ("grok-imagine-image-2.0", "16:9", "image_generate", ("matches", "16:9")),
-        ("grok-imagine-image-2.0", "2:3", "lith-call", ("cannot preserve", "2:3")),
-        ("another-model", "16:9", "lith-call", ("does not match",)),
-        ("another-model", "2:3", "lith-call", ("does not match", "cannot preserve")),
+        ("grok-imagine-image-2.0", "2:3", "lith-press", ("cannot preserve", "2:3")),
+        ("another-model", "16:9", "lith-press", ("does not match",)),
+        ("another-model", "2:3", "lith-press", ("does not match", "cannot preserve")),
     ],
 )
 def test_routing_requires_both_model_and_exact_aspect(
     tmp_path, active, aspect, route, reason_parts
 ):
-    decision = call_cli.routing_decision(
+    decision = press_cli.routing_decision(
         "grok-imagine-image-2.0",
         aspect,
         home=tmp_path,
@@ -262,11 +262,11 @@ def test_check_prints_route_and_specific_reason_without_auth(
     def forbidden(*args, **kwargs):
         raise AssertionError("--check must not resolve credentials or call a provider")
 
-    monkeypatch.setattr(call_cli, "resolve_credential", forbidden)
-    monkeypatch.setattr(call_cli, "generate", forbidden)
+    monkeypatch.setattr(press_cli, "resolve_credential", forbidden)
+    monkeypatch.setattr(press_cli, "generate", forbidden)
     assert _main(monkeypatch, "--recipe", path, "--check") == 0
     output = capsys.readouterr().out
-    assert "route=lith-call" in output
+    assert "route=lith-press" in output
     assert "reason=Hermes image_generate cannot preserve resolved aspect '2:3'" in output
 
 
@@ -278,7 +278,7 @@ def test_opt_in_grok_canary_recipe_is_capable_and_routable(tmp_path):
     assert recipe.model == "grok-imagine-image-2.0"
     assert provider_for_model(recipe.model) == "xai"
     assert rendered["aspect_note"] is None
-    assert call_cli.routing_decision(
+    assert press_cli.routing_decision(
         recipe.model,
         rendered["aspect_ratio"],
         home=tmp_path,
@@ -322,8 +322,8 @@ def test_live_call_is_recipe_anchored_preserves_prompt_and_writes_magic_extensio
         calls["generate"] = (request, kwargs)
         return result
 
-    monkeypatch.setattr(call_cli, "resolve_credential", resolve)
-    monkeypatch.setattr(call_cli, "generate", generate)
+    monkeypatch.setattr(press_cli, "resolve_credential", resolve)
+    monkeypatch.setattr(press_cli, "generate", generate)
     assert _main(
         monkeypatch,
         "--recipe", path,
@@ -365,7 +365,7 @@ def test_invalid_candidate_prevents_the_entire_batch_from_being_written(tmp_path
     )
     out = tmp_path / "out"
     with pytest.raises(ValueError, match="candidate 1"):
-        call_cli._write_candidates(
+        press_cli._write_candidates(
             result, output_dir=out, family_key="B_brutalist", headline="SHIP"
         )
     assert not out.exists()
@@ -374,7 +374,7 @@ def test_invalid_candidate_prevents_the_entire_batch_from_being_written(tmp_path
 def test_pyproject_registers_lith_call_without_runtime_dependencies():
     pyproject = pathlib.Path(__file__).resolve().parents[1] / "pyproject.toml"
     text = pyproject.read_text()
-    assert 'lith-call = "lith.cli.call:main"' in text
+    assert 'lith-press = "lith.cli.press:main"' in text
     project_section = text.split("[project]", 1)[1].split("[project.optional-dependencies]", 1)[0]
     assert "dependencies" not in project_section
 
@@ -392,10 +392,10 @@ BED = pathlib.Path(__file__).resolve().parents[1] / "recipes" / "integration"
 def test_check_surfaces_render_notes_on_both_channels(
     recipe, field, fragment, monkeypatch, capsys
 ):
-    """lith-call must not swallow what lith-generate reports.
+    """lith-press must not swallow what lith-plate reports.
 
     A clamped ratio and a too-thin copy block are both substitutions the
-    caller has to know about, and lith-call is the command that spends the
+    caller has to know about, and lith-press is the command that spends the
     money. It reported neither until this test existed: --emit-json omitted
     the field and stderr was zero bytes.
     """
@@ -420,7 +420,7 @@ def test_dry_run_carries_render_notes_too(monkeypatch, capsys):
 
 
 def test_render_notes_drops_empty_values():
-    from lith.cli.call import render_notes
+    from lith.cli.press import render_notes
 
     assert render_notes({"aspect_note": None, "copy_note": "", "limit_notes": []}) == {}
     assert render_notes({"aspect_note": "x"}) == {"aspect_note": "x"}

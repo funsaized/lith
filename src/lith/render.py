@@ -10,7 +10,7 @@ def _palette_value(field: Any, default: str) -> str:
     """Resolve a palette field to a string suitable for prompt insertion.
 
     List values are joined with ' | ' — this matches the original
-    generate.py behavior for A_sticker's multi-accent palette. Picking
+    plate.py behavior for A_sticker's multi-accent palette. Picking
     field[0] would silently change only A_sticker's prompt.
     """
     if isinstance(field, list):

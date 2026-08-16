@@ -37,10 +37,10 @@ below selects Hermes.
    even when the intended provider seems obvious:
 
    ```bash
-   lith-call --check --recipe /absolute/path/to/recipe.json
+   lith-press --check --recipe /absolute/path/to/recipe.json
    ```
 
-   The command prints `route=image_generate` or `route=lith-call` and the
+   The command prints `route=image_generate` or `route=lith-press` and the
    specific reason. Do not substitute a remembered routing decision for this
    check; the recipe, resolved aspect, and Hermes configuration can change.
 
@@ -51,30 +51,30 @@ below selects Hermes.
      back to `FAL_IMAGE_MODEL`) exactly equals the recipe's model.
    - The resolved aspect is exactly `16:9`, `1:1`, or `9:16`.
 
-   Any model mismatch or any other ratio routes to `lith-call`. A matching
+   Any model mismatch or any other ratio routes to `lith-press`. A matching
    model alone is insufficient because Hermes reduces aspect ratios to three
    buckets.
 
-3. For `route=lith-call`, inspect the exact provider payload without resolving
+3. For `route=lith-press`, inspect the exact provider payload without resolving
    credentials or spending money, then make the call:
 
    ```bash
-   lith-call --dry-run --recipe /absolute/path/to/recipe.json
-   lith-call --recipe /absolute/path/to/recipe.json --out /absolute/path/to/candidates
+   lith-press --dry-run --recipe /absolute/path/to/recipe.json
+   lith-press --recipe /absolute/path/to/recipe.json --out /absolute/path/to/candidates
    ```
 
    Use `--n`, `--resolution 1k|2k`, `--quality low|medium|high`, or `--seed`
    when the job requires an override. Add `--emit-json` to the live command for
    candidate paths and `CallResult` metadata. Candidate files are named
    `{stem}-c{i}.<jpg|png|webp>`, with the extension determined from their bytes.
-   Use `lith-call --auth --recipe /absolute/path/to/recipe.json` to inspect each
+   Use `lith-press --auth --recipe /absolute/path/to/recipe.json` to inspect each
    provider's resolving tier, source, and fingerprint without exposing a key.
 
 4. For `route=image_generate`, render the envelope and pass only the fields the
    active tool accepts:
 
    ```bash
-   lith-generate --recipe /absolute/path/to/recipe.json --call --emit-json
+   lith-plate --recipe /absolute/path/to/recipe.json --press --emit-json
    ```
 
    Keep `negative_prompt` in the envelope because FAL/Flux backends accept it.
@@ -87,7 +87,7 @@ below selects Hermes.
    publishes it under the recipe's deterministic output path:
 
    ```bash
-   lith-plate --recipe /absolute/path/to/recipe.json \
+   lith-print --recipe /absolute/path/to/recipe.json \
      --image-file /absolute/path/to/candidate.png --strict
    ```
 
@@ -97,8 +97,8 @@ below selects Hermes.
    The published extension follows the returned bytes (`.jpg`, `.png`, or
    `.webp`); the image is never re-encoded.
 
-   Treat `lith-call` files as raw candidates, not published artifacts. Always
-   pass the selected candidate through `lith-plate`: it is the step that checks
+   Treat `lith-press` files as raw candidates, not published artifacts. Always
+   pass the selected candidate through `lith-print`: it is the step that checks
    the delivered frame against the one the prompt was composed for, and a
    generation tool may quietly substitute a different one. Add `--strict` in
    any batch or sweep so a substituted frame exits 1 instead of printing a
@@ -170,7 +170,7 @@ labels it names appear as text.
 - Report which of `prompt`, `negative_prompt`, `aspect_ratio`, `model` and `n`
   the generation tool actually accepted. A tool that ignores a field still
   returns an image, so a run can look clean while the envelope was discarded.
-- Read the warnings before spending. `lith-generate` and `lith-call` both print
+- Read the warnings before spending. `lith-plate` and `lith-press` both print
   `aspect_note` (the frame was clamped), `copy_note` (the copy block is too thin
   for the template around it, and the model may letter the template instead) and
   `limit_notes` (an `n` or prompt-length ceiling was crossed) on stderr, and
@@ -195,17 +195,17 @@ labels it names appear as text.
 
 ## Verification
 
-- Confirm `lith-generate --help`, `lith-call --help`, and `lith-plate --help`
+- Confirm `lith-plate --help`, `lith-press --help`, and `lith-print --help`
   exit 0.
-- Before a sweep, confirm `lith-call --check --recipe PATH` reports the expected
+- Before a sweep, confirm `lith-press --check --recipe PATH` reports the expected
   route and retain its reason with the run log.
-- For a `lith-call` route, inspect `lith-call --dry-run --recipe PATH` and
+- For a `lith-press` route, inspect `lith-press --dry-run --recipe PATH` and
   confirm the exact model, prompt, candidate count, aspect, and provider extras
   before the first paid request.
 - Confirm `python -c "from lith import render_prompt"` exits 0 in environments
   that install lith as a library dependency.
-- Confirm `lith-plate` exited 0. A published file is not the success signal —
-  `lith-plate` publishes the bytes even when it rejects the frame, so a file
+- Confirm `lith-print` exited 0. A published file is not the success signal —
+  `lith-print` publishes the bytes even when it rejects the frame, so a file
   exists either way.
 - Confirm every line of the brief's spec appears in the image, spelled
   correctly, and that no wording from the prompt's own instructions was

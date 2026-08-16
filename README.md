@@ -16,9 +16,9 @@ functions, and a typed `lith.call` API. Standard library only, no vendor SDKs or
 external binaries.
 
 **What lith is not.** It is not a vendor SDK or an autonomous publisher.
-`lith-call` performs generation, but it does not score or rank candidates, post
+`lith-press` performs generation, but it does not score or rank candidates, post
 to any platform, do video, or turn an existing post into a brief. Candidate
-selection and publication remain explicit handoffs; `lith-plate` with no image
+selection and publication remain explicit handoffs; `lith-print` with no image
 source prints its plan and exits 0.
 
 New here? Work through
@@ -40,7 +40,7 @@ and [how to install it](#install-the-hermes-skill).
 
 - [Install](#install)
 - [Install the Hermes skill](#install-the-hermes-skill)
-- [CLI reference](#cli-reference) — [`lith-generate`](#lith-generate) · [`lith-call`](#lith-call) · [`lith-plate`](#lith-plate)
+- [CLI reference](#cli-reference) — [`lith-plate`](#lith-plate) · [`lith-press`](#lith-press) · [`lith-print`](#lith-print)
 - [Python API](#python-api) — full detail in [the API reference](docs/reference-python-api.md)
 - [Recipe format](#recipe-format)
 - [Style families](#style-families)
@@ -66,7 +66,7 @@ As a tool:
 
 ```bash
 uv tool install git+https://github.com/funsaized/lith
-lith-generate --help
+lith-plate --help
 ```
 
 As a library in another project:
@@ -84,15 +84,15 @@ uv sync --extra test
 ```
 
 `uv sync --extra test` creates `.venv/`, resolves `pyproject.toml`, and installs
-the project editable, which places `lith-generate`, `lith-call`, and `lith-plate`
+the project editable, which places `lith-plate`, `lith-press`, and `lith-print`
 in the venv.
 
 Verify:
 
 ```bash
-uv run lith-generate \
+uv run lith-plate \
   --topic "test" --style B --aspect 16:9 --headline "32 LANGS" --icon "globe"
-uv run lith-call --help
+uv run lith-press --help
 uv run python -c "from lith import render_prompt"
 ```
 
@@ -148,8 +148,8 @@ Verify:
 ```bash
 test -f ~/.hermes/skills/lith/SKILL.md && echo "skill resolves"
 test ! -e ~/.hermes/skills/lith/lith  && echo "not nested"
-lith-generate --help >/dev/null && lith-call --help >/dev/null \
-  && lith-plate --help >/dev/null && echo "cli ok"
+lith-plate --help >/dev/null && lith-press --help >/dev/null \
+  && lith-print --help >/dev/null && echo "cli ok"
 ```
 
 All three lines must print. The second is what catches the nesting trap above —
@@ -168,8 +168,8 @@ restart; copy installs need the `cp` re-run. To uninstall,
 Worth knowing before you hand a session the keys — the file is short and worth
 reading in full:
 
-- Run `lith-call --check`, generate with the selected route, then finish through
-  `lith-plate --strict`.
+- Run `lith-press --check`, generate with the selected route, then finish through
+  `lith-print --strict`.
 - Use absolute paths for recipes and images.
 - Ask the user to pick when candidate selection is subjective.
 - **Never publish, post, or upload without separate authorization.**
@@ -183,14 +183,14 @@ Python install on either.
 
 ## CLI reference
 
-### `lith-generate`
+### `lith-plate`
 
 Renders a brief into a prompt. Prints a human-readable summary by default;
-with `--call`, prints a generation envelope instead.
+with `--press`, prints a press envelope instead.
 
 ```
-lith-generate --recipe PATH [options]
-lith-generate --topic TEXT --style {A..G} --headline TEXT [options]
+lith-plate --recipe PATH [options]
+lith-plate --topic TEXT --style {A..G} --headline TEXT [options]
 ```
 
 | Flag | Type | Default | Description |
@@ -199,17 +199,17 @@ lith-generate --topic TEXT --style {A..G} --headline TEXT [options]
 | `--topic` | str | — | One-sentence brief. Required without `--recipe`. |
 | `--style` | `A`–`G` | — | Style family. Required without `--recipe`. |
 | `--headline` | str | — | In-image headline. Required without `--recipe`. |
-| `--aspect` | provider ratio union | family default | One of `1:1` `3:4` `4:3` `9:16` `16:9` `2:3` `3:2` `9:19.5` `19.5:9` `9:20` `20:9` `1:2` `2:1` `21:9` `auto`. Use a concrete ratio for `lith-call`. |
+| `--aspect` | provider ratio union | family default | One of `1:1` `3:4` `4:3` `9:16` `16:9` `2:3` `3:2` `9:19.5` `19.5:9` `9:20` `20:9` `1:2` `2:1` `21:9` `auto`. Use a concrete ratio for `lith-press`. |
 | `--icon` | str | `gear` | Motif substituted into `{icon}`. |
 | `--n` | int | `4` | Candidate count recorded in the envelope. |
 | `--seed` | int | `None` | Seed recorded in the envelope. |
-| `--model` | see [Aspect ratios](#aspect-ratios) | `grok-imagine-image-2.0` | Model recorded in the envelope for a later `lith-call`. |
+| `--model` | see [Aspect ratios](#aspect-ratios) | `grok-imagine-image-2.0` | Model recorded in the envelope for a later `lith-press`. |
 | `--out` | path | derived stem | Output path recorded in the envelope, verbatim. Without it, the derived value carries no extension. |
-| `--call` | flag | off | Emit the envelope instead of the summary. |
-| `--emit-json` | flag | off | With `--call`, emit JSON rather than `key=value` lines. |
+| `--press` | flag | off | Emit the envelope instead of the summary. |
+| `--emit-json` | flag | off | With `--press`, emit JSON rather than `key=value` lines. |
 
 With `--recipe`, the recipe's `model` and `n` win and `--model` / `--n` are
-ignored; `--seed`, `--out`, `--call`, and `--emit-json` still apply.
+ignored; `--seed`, `--out`, `--press`, and `--emit-json` still apply.
 
 Envelope fields, in order: `prompt`, `negative_prompt`, `aspect_ratio`,
 `model`, `n`, `seed`, `output_path`, `style`, `aspect_note`, `copy_note`,
@@ -222,19 +222,19 @@ instructions instead. `limit_notes` names model-specific `n` or prompt-length
 violations without changing the prompt.
 
 ```bash
-uv run lith-generate --recipe recipes/live_test_recipe.json --call --emit-json
+uv run lith-plate --recipe recipes/live_test_recipe.json --press --emit-json
 ```
 
 Exit codes: `0` on success, `2` on an argparse error (including a missing
 `--topic`/`--style`/`--headline` when `--recipe` is absent).
 
-### `lith-call`
+### `lith-press`
 
 Turns a rendered recipe into real candidate bytes through xAI, OpenAI, or
 MiniMax. Inspect the route and exact provider payload before spending money.
 
 ```
-lith-call --recipe PATH [--out DIR] [--n N] [--resolution {1k,2k}]
+lith-press --recipe PATH [--out DIR] [--n N] [--resolution {1k,2k}]
           [--quality {low,medium,high}] [--seed N]
           [--dry-run | --check | --auth] [--emit-json]
 ```
@@ -248,7 +248,7 @@ lith-call --recipe PATH [--out DIR] [--n N] [--resolution {1k,2k}]
 | `--quality` | `low` `medium` `high` | — | OpenAI quality. Other adapters report it in `unsupported`. |
 | `--seed` | int | — | MiniMax seed. Other adapters report it in `unsupported`. |
 | `--dry-run` | flag | off | Print the exact provider URL, redacted headers, request body, and unsupported fields; make no call. |
-| `--check` | flag | off | Print whether Hermes `image_generate` or `lith-call` preserves the recipe's model and aspect; make no call. |
+| `--check` | flag | off | Print whether Hermes `image_generate` or `lith-press` preserves the recipe's model and aspect; make no call. |
 | `--auth` | flag | off | Report each provider's resolving credential tier and short fingerprint, never its value. `--recipe` is optional. |
 | `--emit-json` | flag | off | Emit JSON for `--auth`, `--check`, or a live result. `--dry-run` is always JSON. |
 
@@ -262,7 +262,7 @@ Credentials resolve in this order: shell environment, the recipe repository's
 `.env`, `~/.hermes/.env`, then compatible OAuth entries in
 `~/.hermes/auth.json`. The strict variable names are `XAI_API_KEY`,
 `OPENAI_API_KEY`, and `MINIMAX_API_KEY`; copy [`.env.example`](.env.example) for
-a repo-local setup. A repo `.env` is ignored by Git. `lith-call --auth` shows
+a repo-local setup. A repo `.env` is ignored by Git. `lith-press --auth` shows
 which tier won.
 
 MiniMax is implemented but its 1500-character prompt cap is lower than every
@@ -271,21 +271,21 @@ names the measured length and cap; compact templates are a separate design
 task.
 
 ```bash
-uv run lith-call --check --recipe recipes/integration/24-aspect-ultrawide.json
-uv run lith-call --dry-run --recipe recipes/integration/01-stack-A.json
-uv run lith-call --recipe recipes/integration/01-stack-A.json --n 2 --emit-json
+uv run lith-press --check --recipe recipes/integration/24-aspect-ultrawide.json
+uv run lith-press --dry-run --recipe recipes/integration/01-stack-A.json
+uv run lith-press --recipe recipes/integration/01-stack-A.json --n 2 --emit-json
 ```
 
 Exit codes: `0` on success and `2` on an argparse error. Credential, request,
 transport, or provider failures terminate nonzero without writing candidates.
 
-### `lith-plate`
+### `lith-print`
 
 Validates a generated image and publishes it under the recipe's deterministic
 path. With no image source, it prints its plan and exits.
 
 ```
-lith-plate --recipe PATH [--image-url URL | --image-file PATH] [options]
+lith-print --recipe PATH [--image-url URL | --image-file PATH] [options]
 ```
 
 | Flag | Type | Default | Description |
@@ -303,7 +303,7 @@ Two modes:
 | No `--image-url` and no `--image-file` | Prints recipe, family, style, aspect, model, prompt, and output path; exits 0. Nothing is written. |
 | Image source | Writes the image to the recipe's output path, extension sniffed from the bytes; exits 0, or 1 under `--strict` if the frame drifted. |
 
-`lith-plate` is the only step that compares the delivered frame against the one
+`lith-print` is the only step that compares the delivered frame against the one
 the prompt was composed for, so it is the only place a silently substituted
 ratio becomes visible. Without `--strict` that comparison is a `[warn]` line on
 stdout and the command still exits 0 — fine when a person is reading the
@@ -323,7 +323,7 @@ extension follows the image, not the recipe: Grok returns JPEG, `gpt-image-1`
 returns PNG. Nothing is re-encoded.
 
 ```bash
-uv run lith-plate \
+uv run lith-print \
   --recipe recipes/live_test_recipe.json \
   --image-file outputs/B_brutalist_32_langs_raw.jpg
 ```
@@ -571,19 +571,19 @@ The 1.0 tier fails structurally rather than cosmetically: whole sections vanish,
 headings desync from the bodies beneath them, and panels duplicate. One row
 rendered `01 - THE MESH` above section 01's content and dropped section 02
 entirely; another printed `MagicONS` for `MagicDNS` and lost `04 - INGRESS`.
-The frames were exact and `lith-plate --strict` exited 0 for every one of them —
+The frames were exact and `lith-print --strict` exited 0 for every one of them —
 this is a copy-fidelity property, and no exit code detects it.
 
 Use `gpt-image-1` and `gpt-image-1-mini` for a title-and-subtitle poster, or not
 at all. For anything with sections, prefer `gpt-image-2`, `gpt-image-1.5`, or
 the Grok line.
 
-When a clamp happens, `lith-generate` prints `warning: ...` on stderr and sets
-`aspect_note` in the envelope; `lith-plate` prints it as a `[warn]` line.
-`lith-call` prints the same warnings on stderr and carries `aspect_note`,
+When a clamp happens, `lith-plate` prints `warning: ...` on stderr and sets
+`aspect_note` in the envelope; `lith-print` prints it as a `[warn]` line.
+`lith-press` prints the same warnings on stderr and carries `aspect_note`,
 `copy_note` and `limit_notes` in its `--emit-json` payload, including under
 `--check` and `--dry-run`.
-`lith-plate` also compares the *published* image's real dimensions against the
+`lith-print` also compares the *published* image's real dimensions against the
 request and warns when they differ by more than 2%, which catches a provider
 that ignored the field entirely.
 
@@ -631,10 +631,10 @@ The filename derives from `output_path(dir, family_key, headline, ext)`:
 |---|---|---|
 | Published image | `{family_key}_{slug(headline)}{ext}` | `outputs/B_brutalist_32_langs.jpg` |
 
-The directory is `--output-dir` for `lith-plate`, defaulting to the recipe's
-sibling `outputs/`; `lith-generate` derives the same directory from `--recipe`,
-and falls back to `./outputs` in flag mode where there is no recipe to anchor to. `lith-plate` sniffs `ext` from the image bytes —
-`.jpg`, `.png`, or `.webp`. `lith-generate` has no bytes yet, so a path it
+The directory is `--output-dir` for `lith-print`, defaulting to the recipe's
+sibling `outputs/`; `lith-plate` derives the same directory from `--recipe`,
+and falls back to `./outputs` in flag mode where there is no recipe to anchor to. `lith-print` sniffs `ext` from the image bytes —
+`.jpg`, `.png`, or `.webp`. `lith-plate` has no bytes yet, so a path it
 derives is a bare stem and both commands print it the same way, as
 `{stem}.<jpg|png|webp>`. An explicit `--out` is recorded verbatim instead. The
 file is overwritten without prompting when a recipe is re-run.
@@ -684,7 +684,7 @@ uv run pytest -m live_provider -s
 | Layout vocabulary (15 arrangements) | done |
 | Aspect resolution and per-model clamping | done |
 | Published-image aspect check | done |
-| Direct xAI/OpenAI/MiniMax provider layer | done — `lith-call` / `lith.call` |
+| Direct xAI/OpenAI/MiniMax provider layer | done — `lith-press` / `lith.call` |
 | Credential inspection and request dry-run | done |
 | Topic expansion (`expand_brief`) | done, library only — no CLI |
 | Hermes `SKILL.md` wrapper | done, shipped in `skills/`; [installed manually](#install-the-hermes-skill) |

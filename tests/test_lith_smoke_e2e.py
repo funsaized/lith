@@ -18,7 +18,7 @@ def test_driver_publishes_model_image_under_recipe_name(tmp_path):
         [
             sys.executable,
             "-m",
-            "lith.cli.plate",
+            "lith.cli.print",
             "--recipe",
             str(REPO / "recipes" / "live_test_recipe.json"),
             "--image-file",

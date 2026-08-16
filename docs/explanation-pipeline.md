@@ -28,24 +28,24 @@ which shells out to an LLM CLI you supply). Stage 4 is a human looking at the
 candidates. Stage 6 is a human and a separate tool.
 
 Stage 3 is the one that moved. It used to be a call lith described and left to
-somebody else; `lith-call` now makes it.
+somebody else; `lith-press` now makes it.
 
 That is not an unfinished pipeline; it is where the deterministic/probabilistic
 line was drawn. Everything on lith's side of the line is pure, testable, and
 reproducible: given the same recipe, `render_prompt` returns the same prompt —
-copy block and layout description included — forever, and `lith-plate` publishes
+copy block and layout description included — forever, and `lith-print` publishes
 the model's bytes unchanged under a name derived from that same recipe.
 Everything on the other side needs judgment, and lith declines to pretend
 otherwise.
 
-The concrete consequence: `lith-plate` with no `--image-url` and no `--image-file`
+The concrete consequence: `lith-print` with no `--image-url` and no `--image-file`
 prints its plan and exits 0. The dry run is the default, not a flag, because
 the step it can't do — deciding which candidate is the good one — comes at the
 end rather than the middle.
 
 ## Why the driver now makes the call
 
-For most of this project's life `lith-generate --call --emit-json` emitted an
+For most of this project's life `lith-plate --press --emit-json` emitted an
 envelope and stopped. Somebody else made the call and handed the result back.
 The argument was that model choice belonged to whoever held the API key, and
 that a library with no network is easier to trust.
@@ -59,7 +59,7 @@ model that served them was not the one any recipe named, and nothing in the
 returned bytes said so. **An envelope is a request, and a request nobody
 verifies is a wish.**
 
-So `lith-call` closes the loop. It takes the same envelope, sends it to xAI,
+So `lith-press` closes the loop. It takes the same envelope, sends it to xAI,
 OpenAI, or MiniMax over the standard library, and returns a `CallResult` that
 records what actually happened: `model_reported`, `aspect_reported`,
 `revised_prompt`, the raw provider payload, and — the field the whole design
@@ -74,7 +74,7 @@ Two of the original three reasons survived intact, and shaped how it was built.
 `lith.call` nor `lith.cli`. A test enforces that, so the prompt side stays
 network-free by construction rather than by habit.
 
-**Candidate selection is still a human judgment.** `lith-call` writes every
+**Candidate selection is still a human judgment.** `lith-press` writes every
 candidate to disk and ranks none of them. Scoring is stage 4 and no code here
 attempts it.
 
@@ -109,11 +109,11 @@ one adapter. An unknown id raises rather than guessing, and the models it knows
 are exactly the models `aspect.MODEL_ASPECTS` holds capabilities for — the two
 tables are meant to be read together.
 
-**Which road — Hermes or direct?** `lith-call --check` answers this without
+**Which road — Hermes or direct?** `lith-press --check` answers this without
 calling anything. It uses Hermes' own generation tool only when *both* the
 configured model matches the recipe's and the resolved aspect is one of the
 three shapes that tool can deliver. Either condition failing routes to
-`lith-call`, and the printed `reason` says which one.
+`lith-press`, and the printed `reason` says which one.
 
 The second condition matters as much as the first. Hermes' `image_generate`
 takes `landscape`, `square`, or `portrait` — three buckets. A matching model
@@ -138,7 +138,7 @@ clamped `20:9` on `gpt-image-2` to a nearby listed value for no reason at all.
 letter forty lines of authored copy correctly, and the two properties are
 independent. `gpt-image-1` and `gpt-image-1-mini` deliver exact frames and then
 drop whole sections, desync headings from the bodies beneath them, and duplicate
-panels. `lith-plate --strict` exits 0 on every one of those images, because no
+panels. `lith-print --strict` exits 0 on every one of those images, because no
 exit code inspects copy.
 
 That is recorded in [README → Not every listed model can render a dense
@@ -233,11 +233,11 @@ for the frame that was asked for.
 **Nor is whoever else makes the call.** Clamping only binds a caller that
 honors the envelope. A generation tool can accept `aspect_ratio`, `model` and
 `negative_prompt`, quietly drop all three, and still return an image — the run
-looks clean while the envelope was discarded. That is the failure `lith-call`
+looks clean while the envelope was discarded. That is the failure `lith-press`
 was built to end: it sends the fields itself and reports back what the provider
 said it did, so `model_reported` and `unsupported` replace an assumption with
 evidence. Hand the envelope to something else and you are back to trusting it,
-which is why `lith-plate --strict` still checks the delivered frame independently
+which is why `lith-print --strict` still checks the delivered frame independently
 of who produced it.
 
 **Credentials in `~/.hermes/auth.json` are not trusted by name.** Tier 4 of the

@@ -96,7 +96,7 @@ def routing_decision(
     home: str | os.PathLike[str] | None = None,
     environ: Mapping[str, str] | None = None,
 ) -> dict[str, str | None]:
-    """Return the inspectable Hermes-versus-lith-call routing decision."""
+    """Return the inspectable Hermes-versus-lith-press routing decision."""
     hermes_model, source = hermes_active_model(home=home, environ=environ)
     failures: list[str] = []
     if hermes_model is None:
@@ -116,7 +116,7 @@ def routing_decision(
             f"{resolved_aspect!r}; it routes only {allowed}"
         )
     if failures:
-        route = "lith-call"
+        route = "lith-press"
         reason = "; ".join(failures)
     else:
         route = "image_generate"
@@ -279,7 +279,7 @@ def _parser() -> argparse.ArgumentParser:
 def render_notes(rendered: dict[str, Any]) -> dict[str, Any]:
     """Collect the advisory notes a render produced, dropping the empty ones.
 
-    ``lith-generate`` surfaces these; ``lith-call`` did not, so the command
+    ``lith-plate`` surfaces these; ``lith-press`` did not, so the command
     that actually spends money was the one that stayed silent about a clamped
     ratio or a copy block too thin to hold the model. A caller reading only
     this command's output must still learn what was substituted.

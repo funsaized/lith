@@ -44,7 +44,7 @@ def build_request(
         )
     if request.aspect == "auto":
         raise InvalidRequest(
-            "lith-call requires a concrete aspect ratio and never sends 'auto'"
+            "lith-press requires a concrete aspect ratio and never sends 'auto'"
         )
 
     body: dict[str, Any] = {

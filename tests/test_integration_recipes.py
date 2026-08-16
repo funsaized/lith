@@ -164,9 +164,9 @@ def _main(module, argv, monkeypatch):
 
 
 @pytest.mark.parametrize("path", RECIPES, ids=lambda p: p.stem)
-def test_generate_cli_emits_an_envelope(path, monkeypatch, capsys):
-    rc = _main("lith.cli.generate",
-               ["--recipe", str(path), "--call", "--emit-json"], monkeypatch)
+def test_plate_cli_emits_an_envelope(path, monkeypatch, capsys):
+    rc = _main("lith.cli.plate",
+               ["--recipe", str(path), "--press", "--emit-json"], monkeypatch)
     assert rc == 0
     envelope = json.loads(capsys.readouterr().out)
     assert set(envelope) == {
@@ -180,8 +180,8 @@ def test_generate_cli_emits_an_envelope(path, monkeypatch, capsys):
 
 
 @pytest.mark.parametrize("path", RECIPES, ids=lambda p: p.stem)
-def test_plate_cli_dry_runs(path, monkeypatch, capsys, tmp_path):
-    rc = _main("lith.cli.plate",
+def test_print_cli_dry_runs(path, monkeypatch, capsys, tmp_path):
+    rc = _main("lith.cli.print",
                ["--recipe", str(path), "--output-dir", str(tmp_path)], monkeypatch)
     assert rc == 0
     out = capsys.readouterr().out
@@ -189,14 +189,14 @@ def test_plate_cli_dry_runs(path, monkeypatch, capsys, tmp_path):
     assert not list(tmp_path.iterdir()), "a dry run must write nothing"
 
 
-def test_plate_cli_publishes_across_the_testbed(monkeypatch, tmp_path):
+def test_print_cli_publishes_across_the_testbed(monkeypatch, tmp_path):
     """Publishing is format- and family-independent, so a sample suffices."""
     src = pathlib.Path(__file__).resolve().parents[1] / "outputs" / "B_brutalist_32_langs_raw.jpg"
     if not src.is_file():
         pytest.skip("reference artifact missing")
     for path in RECIPES[:6]:
         out = tmp_path / path.stem
-        rc = _main("lith.cli.plate",
+        rc = _main("lith.cli.print",
                    ["--recipe", str(path), "--image-file", str(src),
                     "--output-dir", str(out)], monkeypatch)
         assert rc == 0
@@ -206,26 +206,26 @@ def test_plate_cli_publishes_across_the_testbed(monkeypatch, tmp_path):
         assert not list(out.glob("*.part")), "staging file left behind"
 
 
-def test_generate_cli_warns_when_a_model_clamps(monkeypatch, capsys):
+def test_plate_cli_warns_when_a_model_clamps(monkeypatch, capsys):
     clamping = [p for p in RECIPES
                 if render_prompt(load_recipe(p))["aspect_note"]]
     assert clamping, "testbed must include a clamping row"
-    _main("lith.cli.generate",
-          ["--recipe", str(clamping[0]), "--call", "--emit-json"], monkeypatch)
+    _main("lith.cli.plate",
+          ["--recipe", str(clamping[0]), "--press", "--emit-json"], monkeypatch)
     captured = capsys.readouterr()
     assert "warning:" in captured.err
     assert json.loads(captured.out)["aspect_note"]
 
 
-def test_generate_cli_warns_when_image_01_prompt_exceeds_cap(
+def test_plate_cli_warns_when_image_01_prompt_exceeds_cap(
     monkeypatch, capsys
 ):
     path = next(
         p for p in RECIPES if json.loads(p.read_text())["model"] == "image-01"
     )
     _main(
-        "lith.cli.generate",
-        ["--recipe", str(path), "--call", "--emit-json"],
+        "lith.cli.plate",
+        ["--recipe", str(path), "--press", "--emit-json"],
         monkeypatch,
     )
     captured = capsys.readouterr()
@@ -240,13 +240,13 @@ def test_generate_cli_warns_when_image_01_prompt_exceeds_cap(
     assert f"warning: {expected}" in captured.err
 
 
-def test_generate_cli_warns_when_n_exceeds_model_limit(monkeypatch, capsys):
+def test_plate_cli_warns_when_n_exceeds_model_limit(monkeypatch, capsys):
     _main(
-        "lith.cli.generate",
+        "lith.cli.plate",
         [
             "--topic", "t", "--style", "B", "--headline", "SHIP",
             "--model", "grok-imagine-image-2.0", "--n", "12",
-            "--call", "--emit-json",
+            "--press", "--emit-json",
         ],
         monkeypatch,
     )
@@ -260,7 +260,7 @@ def test_generate_cli_warns_when_n_exceeds_model_limit(monkeypatch, capsys):
 # --- CLI surfaces a recipe cannot reach ------------------------------------
 
 def test_generate_flag_mode_without_a_recipe(monkeypatch, capsys):
-    rc = _main("lith.cli.generate",
+    rc = _main("lith.cli.plate",
                ["--topic", "t", "--style", "C", "--headline", "SHIP",
                 "--icon", "gear", "--aspect", "4:3"], monkeypatch)
     assert rc == 0
@@ -270,9 +270,9 @@ def test_generate_flag_mode_without_a_recipe(monkeypatch, capsys):
 
 
 def test_generate_envelope_as_key_value_pairs(monkeypatch, capsys):
-    rc = _main("lith.cli.generate",
+    rc = _main("lith.cli.plate",
                ["--topic", "t", "--style", "B", "--headline", "SHIP",
-                "--call"], monkeypatch)
+                "--press"], monkeypatch)
     assert rc == 0
     out = capsys.readouterr().out
     assert out.startswith("prompt=")
@@ -281,9 +281,9 @@ def test_generate_envelope_as_key_value_pairs(monkeypatch, capsys):
 
 def test_generate_honours_explicit_out_and_seed(monkeypatch, capsys, tmp_path):
     target = tmp_path / "chosen.png"
-    rc = _main("lith.cli.generate",
+    rc = _main("lith.cli.plate",
                ["--topic", "t", "--style", "G", "--headline", "SHIP",
-                "--seed", "7", "--out", str(target), "--call", "--emit-json"],
+                "--seed", "7", "--out", str(target), "--press", "--emit-json"],
                monkeypatch)
     assert rc == 0
     envelope = json.loads(capsys.readouterr().out)
@@ -293,7 +293,7 @@ def test_generate_honours_explicit_out_and_seed(monkeypatch, capsys, tmp_path):
 
 def test_generate_requires_the_flag_trio_without_a_recipe(monkeypatch):
     with pytest.raises(SystemExit) as excinfo:
-        _main("lith.cli.generate", ["--topic", "t"], monkeypatch)
+        _main("lith.cli.plate", ["--topic", "t"], monkeypatch)
     assert excinfo.value.code == 2
 
 
@@ -301,7 +301,7 @@ def test_run_rejects_a_non_image_file(monkeypatch, tmp_path):
     junk = tmp_path / "not-an-image.jpg"
     junk.write_text("<html>rate limited</html>")
     with pytest.raises(ValueError, match="not a recognized image format"):
-        _main("lith.cli.plate",
+        _main("lith.cli.print",
               ["--recipe", str(RECIPES[0]), "--image-file", str(junk),
                "--output-dir", str(tmp_path)], monkeypatch)
 
@@ -311,7 +311,7 @@ def test_run_publishes_png_bytes_under_a_png_name(monkeypatch, tmp_path):
     src = tmp_path / "candidate.jpg"          # deliberately mislabelled
     src.write_bytes(_png(1024, 1536))
     out = tmp_path / "published"
-    rc = _main("lith.cli.plate",
+    rc = _main("lith.cli.print",
                ["--recipe", str(RECIPES[0]), "--image-file", str(src),
                 "--output-dir", str(out)], monkeypatch)
     assert rc == 0
@@ -369,7 +369,7 @@ def test_testbed_output_stems_collide_so_a_sweep_must_isolate_them():
 
     This is `output_path` working as documented, not a bug — but a sweep that
     publishes them all into one directory keeps 7 files and loses 27, which is
-    exactly what pushed an earlier harness into bypassing lith-plate entirely.
+    exactly what pushed an earlier harness into bypassing lith-print entirely.
     """
     stems = {
         output_path(pathlib.Path("/out"), load_recipe(p).family_key,

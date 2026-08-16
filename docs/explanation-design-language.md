@@ -154,7 +154,7 @@ against the spec before shipping it.
 gloss highlight. If the result has all three, generation drifted to the
 training-set average. Reject and re-prompt rather than accepting it. Each
 family's `negative_prompt` was written to push against this — but none of the
-three providers `lith-call` reaches accepts a negative prompt, so on those the
+three providers `lith-press` reaches accepts a negative prompt, so on those the
 only thing holding the aesthetic is how specifically the positive template
 describes something else.
 

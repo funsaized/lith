@@ -28,7 +28,7 @@ That is the whole install — lith is standard library only, with no binaries to
 put on `$PATH`. Check that it is wired up:
 
 ```bash
-uv run lith-generate --topic "test" --style B --headline "HELLO"
+uv run lith-plate --topic "test" --style B --headline "HELLO"
 ```
 
 A block of prompt text prints and the command exits. We're ready.
@@ -72,7 +72,7 @@ A recipe holds every word that will appear in the image. Create
 Ask the driver what it intends to do with it:
 
 ```bash
-uv run lith-plate --recipe recipes/tutorial_mesh.json
+uv run lith-print --recipe recipes/tutorial_mesh.json
 ```
 
 ```
@@ -141,15 +141,15 @@ Set it back to `hero` (or delete the line) before continuing.
 
 ## Step 4 — Look at the call before making it
 
-`lith-call` is the command that reaches a provider. Before it spends anything,
+`lith-press` is the command that reaches a provider. Before it spends anything,
 ask it which road it plans to take:
 
 ```bash
-uv run lith-call --check --recipe recipes/tutorial_mesh.json
+uv run lith-press --check --recipe recipes/tutorial_mesh.json
 ```
 
 ```
-route=lith-call
+route=lith-press
 reason=Hermes active model '...' does not match recipe model
        'grok-imagine-image-2.0'; Hermes image_generate cannot preserve resolved
        aspect '2:3'; it routes only 16:9, 1:1, 9:16
@@ -162,7 +162,7 @@ the exact frame, lith calls the provider directly.
 Now look at the request itself, still without touching the network:
 
 ```bash
-uv run lith-call --dry-run --recipe recipes/tutorial_mesh.json
+uv run lith-press --dry-run --recipe recipes/tutorial_mesh.json
 ```
 
 ```json
@@ -203,7 +203,7 @@ can letter into the image.
 If you have a provider key, make the call:
 
 ```bash
-uv run lith-call --recipe recipes/tutorial_mesh.json --n 1
+uv run lith-press --recipe recipes/tutorial_mesh.json --n 1
 ```
 
 ```
@@ -232,7 +232,7 @@ among candidates is our job.
 Hand the image to the driver:
 
 ```bash
-uv run lith-plate \
+uv run lith-print \
   --recipe recipes/tutorial_mesh.json \
   --image-file outputs/B_brutalist_32_langs_raw.jpg
 ```
@@ -255,7 +255,7 @@ the layout in our prompt was composed for a portrait frame.
 Add `--strict` and that warning becomes an exit code:
 
 ```bash
-uv run lith-plate --recipe recipes/tutorial_mesh.json \
+uv run lith-print --recipe recipes/tutorial_mesh.json \
   --image-file outputs/B_brutalist_32_langs_raw.jpg --strict
 echo $?          # 1
 ```
@@ -275,13 +275,13 @@ leaving us to guess which file is current.
 We turned an announcement into a finished graphic:
 
 1. A recipe held every word that would appear in the image.
-2. `lith-plate` dry-ran the plan, choosing a frame and an arrangement from the
+2. `lith-print` dry-ran the plan, choosing a frame and an arrangement from the
    shape of our content.
 3. One key changed the arrangement without touching anything else.
-4. `lith-call --check` and `--dry-run` showed the route and the exact request
+4. `lith-press --check` and `--dry-run` showed the route and the exact request
    before anything was spent.
-5. `lith-call` generated candidates, reporting which model really served them.
-6. `lith-plate` checked the delivered frame against the request and published
+5. `lith-press` generated candidates, reporting which model really served them.
+6. `lith-print` checked the delivered frame against the request and published
    under a derived name.
 
 ## Where to go next

@@ -15,20 +15,20 @@ ROOT = Path(__file__).resolve().parents[1]
 THRESHOLD = 80.0
 CAPABILITIES = {
     "recipe-generation": {
-        "source": "lith.expand,lith.recipe,lith.render,lith.aspect,lith.layout,lith.styles,lith.paths,lith.cli.generate",
+        "source": "lith.expand,lith.recipe,lith.render,lith.aspect,lith.layout,lith.styles,lith.paths,lith.cli.plate",
         "tests": [
             "tests/test_recipe_generation_integration.py",
             "tests/test_integration_recipes.py",
             "tests/test_lith_expand.py",
             "tests/test_lith_render.py",
-            "tests/test_lith_cli.py",
+            "tests/test_lith_cli_plate.py",
         ],
     },
     "provider-invocation": {
-        "source": "lith.call,lith.cli.call",
+        "source": "lith.call,lith.cli.press",
         "tests": [
             "tests/test_lith_call.py",
-            "tests/test_lith_cli_call.py",
+            "tests/test_lith_cli_press.py",
             "tests/test_lith_creds.py",
             "tests/test_lith_http.py",
             "tests/test_lith_minimax.py",
@@ -37,10 +37,10 @@ CAPABILITIES = {
         ],
     },
     "output-validation": {
-        "source": "lith.imagebytes,lith.cli.plate",
+        "source": "lith.imagebytes,lith.cli.print",
         "tests": [
             "tests/test_output_integration.py",
-            "tests/test_lith_cli_plate.py",
+            "tests/test_lith_cli_print.py",
             "tests/test_lith_smoke_e2e.py",
             "tests/test_integration_recipes.py",
         ],

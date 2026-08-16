@@ -34,9 +34,9 @@ test = [
 ]
 
 [project.scripts]
-lith-generate = "lith.cli.generate:main"
 lith-plate = "lith.cli.plate:main"
-lith-call = "lith.cli.call:main"
+lith-press = "lith.cli.press:main"
+lith-print = "lith.cli.print:main"
 
 [project.urls]
 Repository = "https://github.com/funsaized/lith"

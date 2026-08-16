@@ -10,8 +10,8 @@ import zlib
 import pytest
 
 from lith.call import CallResult, Candidate
-from lith.cli import call as call_cli
-from lith.cli import plate as plate_cli
+from lith.cli import press as press_cli
+from lith.cli import print as print_cli
 from lith.imagebytes import fetch_image, image_size, looks_like_image
 
 
@@ -65,8 +65,8 @@ def _recipe(tmp_path, *, aspect="2:3"):
 
 
 def _run(monkeypatch, *argv):
-    monkeypatch.setattr(sys, "argv", ["lith-plate", *map(str, argv)])
-    return plate_cli.main()
+    monkeypatch.setattr(sys, "argv", ["lith-print", *map(str, argv)])
+    return print_cli.main()
 
 
 class Response:
@@ -188,7 +188,7 @@ def test_candidate_batch_is_atomic_and_existing_output_warns_on_overwrite(
     )
     candidate_dir = tmp_path / "candidates"
     with pytest.raises(ValueError, match="candidate 1"):
-        call_cli._write_candidates(
+        press_cli._write_candidates(
             invalid_batch,
             output_dir=candidate_dir,
             family_key="B_brutalist",

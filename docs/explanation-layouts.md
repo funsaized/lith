@@ -146,7 +146,7 @@ publish. Checking is a human looking at candidates, which is
 unbuilt.
 
 It does now verify the *frame* the arrangement was composed for.
-`lith-plate --strict` measures the published image and exits non-zero when the
+`lith-print --strict` measures the published image and exits non-zero when the
 delivered ratio differs from the request, because a `zigzag` composed for `2:3`
 rendered into `16:9` has not landed whatever its panels are doing. That is a
 precondition for the arrangement being right, not evidence that it is.

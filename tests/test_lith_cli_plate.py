@@ -1,159 +1,169 @@
+import json
 import subprocess
-import struct
 import sys
-import zlib
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
-
-REPO = Path(__file__).resolve().parents[1]
 
 
-def png(width, height):
-    def chunk(kind, payload):
-        return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF)
-    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
-    pixels = zlib.compress((b"\x00" + b"\x20\x80\x40" * width) * height)
-    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", pixels) + chunk(b"IEND", b"")
-
-
-def test_dry_mode_prints_plan():
+def test_pure_mode_prints_rendered_prompt():
     result = subprocess.run(
         [
             sys.executable,
             "-m",
             "lith.cli.plate",
-            "--recipe",
-            str(REPO / "recipes" / "live_test_recipe.json"),
+            "--topic",
+            "t",
+            "--style",
+            "B",
+            "--headline",
+            "32 LANGS",
+            "--icon",
+            "globe",
         ],
         capture_output=True,
         text=True,
     )
     assert result.returncode == 0
     out = result.stdout + result.stderr
-    assert "DILL PICKLES" in out
-    assert "Next:" in out
+    # The headline reaches the prompt through the spec's TITLE line, which is
+    # the single copy path every family now shares.
+    assert "TITLE: 32 LANGS" in out
+    assert "pure-black panel" in out
 
 
-def test_download_rejects_non_http_schemes():
-    from lith.imagebytes import download
-
-    with pytest.raises(ValueError, match="refusing to fetch scheme"):
-        download("file:///etc/passwd", Path("/tmp/x.jpg"))
-
-
-def test_download_rejects_oversized_response(tmp_path):
-    from lith.imagebytes import download
-
-    fake = MagicMock()
-    fake.url = "http://example.com/huge.jpg"
-    fake.headers = {"Content-Type": "image/jpeg"}
-    big = b"\xff\xd8\xff" + b"x" * (1024 * 1024)
-
-    def chunk_iter():
-        for _ in range(30):
-            yield big
-
-    fake.__enter__ = lambda self: self
-    fake.__exit__ = lambda self, *args: None
-    fake.__iter__ = lambda self: chunk_iter()
-    with patch("urllib.request.urlopen", return_value=fake):
-        with pytest.raises(ValueError, match="exceeds"):
-            download("http://example.com/huge.jpg", tmp_path / "x.jpg")
-
-
-def test_download_rejects_redirect_to_disallowed_scheme(tmp_path):
-    from lith.imagebytes import download
-
-    fake = MagicMock()
-    fake.url = "ftp://example.com/image.jpg"
-    fake.__enter__ = lambda self: self
-    fake.__exit__ = lambda self, *args: None
-
-    with patch("urllib.request.urlopen", return_value=fake):
-        with pytest.raises(ValueError, match="refusing redirected scheme 'ftp'"):
-            download("https://example.com/image.jpg", tmp_path / "x.jpg")
-
-
-def test_publishes_under_the_recipe_name(tmp_path):
-    """The model's image is the deliverable; no staging file survives."""
-    src = tmp_path / "candidate.png"
-    src.write_bytes(png(16, 16))
-    out = tmp_path / "out"
+def test_call_mode_emits_json_envelope():
     result = subprocess.run(
-        [sys.executable, "-m", "lith.cli.plate",
-         "--recipe", str(REPO / "recipes" / "live_test_recipe.json"),
-         "--output-dir", str(out), "--image-file", str(src)],
+        [
+            sys.executable,
+            "-m",
+            "lith.cli.plate",
+            "--topic",
+            "t",
+            "--style",
+            "B",
+            "--headline",
+            "32 LANGS",
+            "--icon",
+            "globe",
+            "--press",
+            "--emit-json",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    env = json.loads(result.stdout)
+    for key in (
+        "prompt",
+        "negative_prompt",
+        "aspect_ratio",
+        "model",
+        "n",
+        "seed",
+        "output_path",
+        "style",
+    ):
+        assert key in env, f"envelope missing key: {key}"
+
+
+def test_filename_includes_full_family_key_in_flag_mode():
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "lith.cli.plate",
+            "--topic",
+            "t",
+            "--style",
+            "B",
+            "--headline",
+            "32 LANGS",
+            "--icon",
+            "globe",
+            "--press",
+            "--emit-json",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    env = json.loads(result.stdout)
+    # Stem only — the extension is lith-print's to choose from the image bytes.
+    assert env["output_path"].endswith("B_brutalist_32_langs"), env["output_path"]
+    assert "_x_" not in env["output_path"]
+
+
+def test_filename_slugifies_for_path_separators():
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "lith.cli.plate",
+            "--topic",
+            "t",
+            "--style",
+            "B",
+            "--headline",
+            "AI/ML: v2",
+            "--icon",
+            "gear",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    out = result.stdout + result.stderr
+    assert "B_brutalist_ai_ml_v2.png" in out or "B_brutalist_ai_ml_v2" in out
+
+
+def test_generate_and_run_agree_on_the_output_path():
+    """A derived path is a stem in both CLIs: neither has the bytes that name it."""
+    import subprocess, sys
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[1]
+    recipe = str(repo / "recipes" / "live_test_recipe.json")
+
+    def out_line(module):
+        r = subprocess.run(
+            [sys.executable, "-m", module, "--recipe", recipe],
+            capture_output=True, text=True, cwd=repo,
+        )
+        assert r.returncode == 0, r.stderr
+        return next(l for l in r.stdout.splitlines() if l.startswith("[output]"))
+
+    assert out_line("lith.cli.plate") == out_line("lith.cli.print")
+    assert ".png" not in out_line("lith.cli.plate")
+
+
+def test_generate_honors_an_explicit_out_verbatim(tmp_path):
+    import subprocess, sys
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[1]
+    target = tmp_path / "chosen.png"
+    r = subprocess.run(
+        [sys.executable, "-m", "lith.cli.plate", "--recipe",
+         str(repo / "recipes" / "live_test_recipe.json"), "--out", str(target)],
+        capture_output=True, text=True, cwd=repo,
+    )
+    assert r.returncode == 0, r.stderr
+    assert f"[output]      {target}" in r.stdout
+
+
+def test_envelope_carries_the_aspect_note():
+    """An agent reads the envelope, not stderr — a clamp must be machine-visible."""
+    import json, subprocess, sys
+
+    r = subprocess.run(
+        [sys.executable, "-m", "lith.cli.plate", "--topic", "t", "--style", "B",
+         "--headline", "X", "--model", "gpt-image-1", "--press", "--emit-json"],
         capture_output=True, text=True,
     )
-    assert result.returncode == 0, result.stderr
-    assert (out / "B_brutalist_dill_pickles.png").is_file()
-    assert not list(out.glob("*.part"))
+    env = json.loads(r.stdout)
+    assert env["aspect_ratio"] == "3:2"
+    assert "cannot produce 16:9" in env["aspect_note"]
+    assert "warning:" in r.stderr
 
-
-def test_image_size_reads_jpeg_and_png_headers():
-    from lith.imagebytes import image_size
-
-    png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8 + (1024).to_bytes(4, "big") + (1536).to_bytes(4, "big")
-    assert image_size(png) == (1024, 1536)
-    # Minimal JPEG: SOI, then an SOF0 declaring 720x1280.
-    jpeg = b"\xff\xd8\xff" + b"\xe0\x00\x02" + b"\xff\xc0\x00\x11\x08" + (1280).to_bytes(2, "big") + (720).to_bytes(2, "big") + b"\x00" * 8
-    assert image_size(jpeg) == (720, 1280)
-    assert image_size(b"RIFF____WEBP") is None  # unparsed on purpose
-
-
-def test_public_image_helpers_share_magic_byte_detection():
-    from lith.imagebytes import image_ext, looks_like_image
-
-    truncated = b"\x89PNG\r\n\x1a\nfixture"
-    assert image_ext(truncated) == ".png"
-    assert not looks_like_image(truncated)
-    assert looks_like_image(png(1, 1))
-    assert image_ext(b"not an image") is None
-    assert not looks_like_image(b"not an image")
-
-
-def test_strict_exits_nonzero_on_frame_drift(tmp_path):
-    """A warning alone let 18 reframed images publish as a clean sweep."""
-    # The canary recipe asks 1:1; hand it a 9:16 portrait.
-    src = tmp_path / "candidate.png"
-    src.write_bytes(png(72, 128))
-    argv = [sys.executable, "-m", "lith.cli.plate",
-            "--recipe", str(REPO / "recipes" / "live_test_recipe.json"),
-            "--output-dir", str(tmp_path / "out"), "--image-file", str(src)]
-
-    lax = subprocess.run(argv, capture_output=True, text=True)
-    assert lax.returncode == 0
-    assert "aspect:" in lax.stdout
-
-    strict = subprocess.run(argv + ["--strict"], capture_output=True, text=True)
-    assert strict.returncode == 1, strict.stdout
-    # Published anyway: the bytes are the evidence for diagnosing the drift.
-    assert (tmp_path / "out" / "B_brutalist_dill_pickles.png").is_file()
-
-
-def test_strict_stays_silent_when_the_frame_matches(tmp_path):
-    src = tmp_path / "candidate.png"
-    src.write_bytes(png(128, 128))
-    result = subprocess.run(
-        [sys.executable, "-m", "lith.cli.plate",
-         "--recipe", str(REPO / "recipes" / "live_test_recipe.json"),
-         "--output-dir", str(tmp_path / "out"), "--image-file", str(src),
-         "--strict"],
+    clean = subprocess.run(
+        [sys.executable, "-m", "lith.cli.plate", "--topic", "t", "--style", "B",
+         "--headline", "X", "--press", "--emit-json"],
         capture_output=True, text=True,
     )
-    assert result.returncode == 0, result.stdout
-
-
-def test_aspect_mismatch_flags_a_silent_substitution():
-    from lith.cli.plate import aspect_mismatch
-
-    portrait = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8 + (720).to_bytes(4, "big") + (1280).to_bytes(4, "big")
-    # 720x1280 is 9:16. Asking for 2:3 and getting this is the real defect.
-    assert aspect_mismatch(portrait, "2:3")
-    assert aspect_mismatch(portrait, "9:16") is None
-    # Unparseable or absent requests never raise.
-    assert aspect_mismatch(b"RIFF____WEBP", "2:3") is None
-    assert aspect_mismatch(portrait, "auto") is None
-    assert aspect_mismatch(portrait, "0:0") is None
+    assert json.loads(clean.stdout)["aspect_note"] is None

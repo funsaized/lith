@@ -26,9 +26,9 @@ wherever a signature says `path`.
 - [`lith.paths`](#lithpaths)
 - [`lith.expand`](#lithexpand)
 - [`lith.imagebytes`](#lithimagebytes)
-- [`lith.cli.generate`](#lithcligenerate)
-- [`lith.cli.call`](#lithclicall)
-- [`lith.cli.plate`](#lithclirun)
+- [`lith.cli.plate`](#lithcligenerate)
+- [`lith.cli.press`](#lithclicall)
+- [`lith.cli.print`](#lithclirun)
 - [Exception summary](#exception-summary)
 - [Side effects and determinism](#side-effects-and-determinism)
 
@@ -57,9 +57,9 @@ src/lith/
 │   └── minimax.py       MiniMax text-to-image adapter
 ├── data/styles.json     the seven style families
 └── cli/
-    ├── generate.py      lith-generate entry point
-    ├── call.py          lith-call entry point
-    └── plate.py         lith-plate entry point
+    ├── plate.py         lith-plate entry point
+    ├── press.py         lith-press entry point
+    └── print.py         lith-print entry point
 ```
 
 The prompt side remains pure and points downward only:
@@ -247,8 +247,8 @@ hex codes as panel headings and a font name as body copy.
 This never blocks rendering. A title-only poster is a legitimate request, and
 [`format_layout`](#format_layout) already emits only the zones the brief has
 copy for. The note exists so the caller learns before the call rather than
-after, and it reaches them three ways: on stderr from `lith-generate`, as a
-`[warn]` line from `lith-plate`, and as the envelope's `copy_note` field.
+after, and it reaches them three ways: on stderr from `lith-plate`, as a
+`[warn]` line from `lith-print`, and as the envelope's `copy_note` field.
 
 ### `_palette_value`
 
@@ -494,7 +494,7 @@ request_limit_notes(model: str, n: int, prompt: str) -> list[str]
 
 Returns notes when `n` exceeds the model's `n_max` or `len(prompt)` exceeds its
 `prompt_max_chars`. Unknown models return an empty list. This is advisory in
-`lith-generate`; provider adapters still validate before network access.
+`lith-plate`; provider adapters still validate before network access.
 
 ### `content_aspect`
 
@@ -745,7 +745,7 @@ generate(request, *, credential=None, **provider_options) -> CallResult
 ```
 
 `build_request` is pure: it performs no credential lookup and no network access,
-which is what [`lith-call --dry-run`](#lithclicall) prints.
+which is what [`lith-press --dry-run`](#lithclicall) prints.
 
 **Request bodies.** Each adapter sends only what its provider documents.
 
@@ -1124,10 +1124,10 @@ includes the first 200 characters of `text`.
 
 ---
 
-## `lith.cli.generate`
+## `lith.cli.plate`
 
-Entry point for `lith-generate`. Flags:
-[README → `lith-generate`](../README.md#lith-generate).
+Entry point for `lith-plate`. Flags:
+[README → `lith-plate`](../README.md#lith-plate).
 
 ### `build_brief`
 
@@ -1146,7 +1146,7 @@ main() -> int
 ```
 
 Resolves the brief from `--recipe` or from flags, renders the prompt, and
-prints either a summary or a call envelope. A non-null `aspect_note` or
+prints either a summary or a press envelope. A non-null `aspect_note` or
 [`copy_note`](#copy_note) is printed to stderr as `warning: ...` and carried in
 the envelope. [`request_limit_notes`](#request_limit_notes) are printed and
 carried as `limit_notes` too. All can fire on the same render.
@@ -1155,7 +1155,7 @@ Precedence with `--recipe`: `n` and `model` come from the recipe, so `--n` and
 `--model` are silently ignored. `--seed` and `--out` are read from flags in
 both modes. When `--out` is absent, recipe mode anchors the extensionless stem
 to [`default_output_dir(recipe)`](#default_output_dir); flag mode uses
-`cwd/outputs`. `lith-generate` has no image bytes, so it does not name a format.
+`cwd/outputs`. `lith-plate` has no image bytes, so it does not name a format.
 The envelope carries that stem; the summary prints it as
 `{stem}.<jpg|png|webp>`, matching `cli.run`. An explicit `--out` is used
 verbatim in both.
@@ -1167,10 +1167,10 @@ a missing one triggers `parser.error`, which exits 2.
 
 ---
 
-## `lith.cli.call`
+## `lith.cli.press`
 
-Entry point for `lith-call`. Flags:
-[README → `lith-call`](../README.md#lith-call).
+Entry point for `lith-press`. Flags:
+[README → `lith-press`](../README.md#lith-press).
 
 ### `render_notes`
 
@@ -1189,8 +1189,8 @@ Every collected note is printed to stderr as `warning: …` (list-valued
 emits: the routing decision under `--check`, the request preview under
 `--dry-run`, the result metadata otherwise.
 
-This exists because it did not. `lith-generate` surfaced all three and
-`lith-call` surfaced none, so the command that spends money was the silent one:
+This exists because it did not. `lith-plate` surfaced all three and
+`lith-press` surfaced none, so the command that spends money was the silent one:
 a recipe clamped from `16:9` to `3:2` produced a correct image, a zero-byte
 stderr, and a JSON payload with no mention of the substitution.
 
@@ -1206,10 +1206,10 @@ routing_decision(
 ) -> dict[str, str | None]
 ```
 
-Returns an inspectable Hermes-versus-`lith-call` decision. Hermes
+Returns an inspectable Hermes-versus-`lith-press` decision. Hermes
 `image_generate` is selected only when its active model exactly equals the
 recipe model and the resolved aspect is `16:9`, `1:1`, or `9:16`; every other
-case routes to `lith-call` with the failed condition in `reason`. The Hermes
+case routes to `lith-press` with the failed condition in `reason`. The Hermes
 model comes from `~/.hermes/config.yaml` `image_gen.model`, falling back to
 `FAL_IMAGE_MODEL`.
 
@@ -1347,9 +1347,9 @@ is permitted.
 
 ---
 
-## `lith.cli.plate`
+## `lith.cli.print`
 
-Entry point for `lith-plate`. Flags: [README → `lith-plate`](../README.md#lith-plate).
+Entry point for `lith-print`. Flags: [README → `lith-print`](../README.md#lith-print).
 
 ### `aspect_mismatch`
 

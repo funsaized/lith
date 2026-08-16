@@ -114,7 +114,7 @@ is to describe something else in detail.
 **And on the current providers, that nudge never arrives.** Neither xAI, OpenAI,
 nor MiniMax accepts a negative prompt on its image endpoint. Every family still
 carries one, because FAL/Flux backends do accept them and the field costs
-nothing to keep — but for the three providers `lith-call` reaches, the field is
+nothing to keep — but for the three providers `lith-press` reaches, the field is
 reported in `CallResult.unsupported` and never sent.
 
 That is worth knowing when reading a family's `negative_prompt` as though it

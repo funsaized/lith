@@ -50,7 +50,7 @@ class Credential:
 
     @property
     def fingerprint(self) -> str:
-        """A short stable fingerprint suitable for ``lith-call --auth``."""
+        """A short stable fingerprint suitable for ``lith-press --auth``."""
         return sha256(self.secret.encode("utf-8")).hexdigest()[:8]
 
     @property

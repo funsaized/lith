@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 import binascii
+from fractions import Fraction
+from math import ceil, gcd, lcm
 from typing import Any
 
 from lith.aspect import ratio
@@ -46,12 +48,25 @@ def _pixel_dimensions(aspect: str) -> tuple[int, int]:
     if requested is None or requested <= 0:
         raise InvalidRequest(f"MiniMax requires a positive W:H aspect; got {aspect!r}")
 
-    candidates = []
-    for width in range(512, 2049, 8):
-        for height in range(512, 2049, 8):
-            error = abs(width / height - requested) / requested
-            candidates.append((error, -(width * height), width, height))
-    error, _negative_area, width, height = min(candidates)
+    width_text, height_text = aspect.split(":", 1)
+    exact = Fraction(width_text) / Fraction(height_text)
+    factor = lcm(8 // gcd(exact.numerator, 8), 8 // gcd(exact.denominator, 8))
+    width_unit = exact.numerator * factor
+    height_unit = exact.denominator * factor
+    minimum_scale = max(ceil(512 / width_unit), ceil(512 / height_unit))
+    maximum_scale = min(2048 // width_unit, 2048 // height_unit)
+
+    if minimum_scale <= maximum_scale:
+        width = width_unit * maximum_scale
+        height = height_unit * maximum_scale
+    elif requested >= 1:
+        width = 2048
+        height = max(512, min(2048, round(width / requested / 8) * 8))
+    else:
+        height = 2048
+        width = max(512, min(2048, round(height * requested / 8) * 8))
+
+    error = abs(width / height - requested) / requested
     if error > 0.01:
         raise InvalidRequest(
             f"MiniMax cannot represent aspect {aspect!r} within 1% using "

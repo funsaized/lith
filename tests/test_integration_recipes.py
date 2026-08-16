@@ -92,8 +92,22 @@ def test_testbed_covers_every_family_and_model():
     families = {d["style"] for d in docs}
     assert families == set("ABCDEFG"), f"families missing: {set('ABCDEFG') - families}"
     models = {d["model"] for d in docs}
-    assert set(MODEL_ASPECTS) <= models, f"models missing: {set(MODEL_ASPECTS) - models}"
-    assert "minimax-image" in models, "an unlisted model must be exercised too"
+    assert models == set(MODEL_ASPECTS), (
+        f"capability models missing from testbed: {set(MODEL_ASPECTS) - models}; "
+        f"unrecognised recipe models: {models - set(MODEL_ASPECTS)}"
+    )
+
+
+def test_gpt_image_2_resolves_20_9_without_clamping():
+    matches = [
+        p for p in RECIPES
+        if (doc := json.loads(p.read_text()))["model"] == "gpt-image-2"
+        and doc["brief"].get("aspect") == "20:9"
+    ]
+    assert matches, "no gpt-image-2 recipe exercises a ratio outside the old 15"
+    rendered = render_prompt(load_recipe(matches[0]))
+    assert rendered["aspect_ratio"] == "20:9"
+    assert rendered["aspect_note"] is None
 
 
 def test_testbed_covers_every_aspect_resolution_rung():
@@ -134,7 +148,7 @@ def test_generate_cli_emits_an_envelope(path, monkeypatch, capsys):
     envelope = json.loads(capsys.readouterr().out)
     assert set(envelope) == {
         "prompt", "negative_prompt", "aspect_ratio", "model", "n", "seed",
-        "output_path", "style", "aspect_note", "copy_note",
+        "output_path", "style", "aspect_note", "copy_note", "limit_notes",
     }
     assert envelope["model"] == json.loads(path.read_text())["model"]
     assert envelope["n"] == 2
@@ -178,6 +192,46 @@ def test_generate_cli_warns_when_a_model_clamps(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "warning:" in captured.err
     assert json.loads(captured.out)["aspect_note"]
+
+
+def test_generate_cli_warns_when_image_01_prompt_exceeds_cap(
+    monkeypatch, capsys
+):
+    path = next(
+        p for p in RECIPES if json.loads(p.read_text())["model"] == "image-01"
+    )
+    _main(
+        "lith.cli.generate",
+        ["--recipe", str(path), "--call", "--emit-json"],
+        monkeypatch,
+    )
+    captured = capsys.readouterr()
+    envelope = json.loads(captured.out)
+    length = len(envelope["prompt"])
+    expected = (
+        f"image-01 prompt is {length} characters; maximum is 1500 "
+        "(backlog §3.1)"
+    )
+    assert length > 1500
+    assert expected in envelope["limit_notes"]
+    assert f"warning: {expected}" in captured.err
+
+
+def test_generate_cli_warns_when_n_exceeds_model_limit(monkeypatch, capsys):
+    _main(
+        "lith.cli.generate",
+        [
+            "--topic", "t", "--style", "B", "--headline", "SHIP",
+            "--model", "grok-imagine-image-2.0", "--n", "12",
+            "--call", "--emit-json",
+        ],
+        monkeypatch,
+    )
+    captured = capsys.readouterr()
+    envelope = json.loads(captured.out)
+    note = "grok-imagine-image-2.0 requested n=12; maximum is 10"
+    assert envelope["limit_notes"] == [note]
+    assert f"warning: {note}" in captured.err
 
 
 # --- CLI surfaces a recipe cannot reach ------------------------------------
@@ -302,3 +356,22 @@ def test_testbed_output_stems_collide_so_a_sweep_must_isolate_them():
     }
     assert len(stems) < len(RECIPES)
     assert len(stems) == 7, f"one stem per family expected, got {sorted(stems)}"
+
+
+def test_no_template_puts_text_after_the_spec_block():
+    """The copy block must be the last thing in the prompt.
+
+    Every template declares the spec block "the ONLY text that may appear",
+    then historically appended a Mood line after it — 50-94 characters of
+    prose sitting in the most recent position, contradicting the sentence
+    above it. On a title-only brief that trailing line was longer than the
+    copy block, and A_sticker lettered its Mood line verbatim into a poster.
+    """
+    for key, family in load_styles()["families"].items():
+        template = family["prompt_template"]
+        assert "{spec}" in template, f"{key} has no spec slot"
+        trailing = template.split("{spec}", 1)[1].strip()
+        assert not trailing, (
+            f"{key} places {len(trailing)} characters after the copy block: "
+            f"{trailing[:60]!r}"
+        )

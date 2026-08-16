@@ -1,8 +1,8 @@
 # Lith
 
-Lith renders a short brief into a style-locked image-generation prompt, then
-validates and publishes the image that comes back. It is a prompt renderer with
-a recipe format in front of it and a publishing guard behind it.
+Lith renders a short brief into a style-locked image-generation prompt, calls
+xAI, OpenAI, or MiniMax through one inspectable provider layer, then validates
+and publishes the image that comes back.
 
 **What lith is.** Seven fixed visual style families in
 [`styles.json`](src/lith/data/styles.json), each a prompt template with a few
@@ -11,22 +11,21 @@ poster spec — headline, subtitle, sections, diagram, footer — serialized int
 the prompt as a literal copy block the model is ordered to reproduce character
 for character, so no shipped word was invented by the model. Fifteen named
 layouts and a resolution chain that picks one from the shape of your content
-and the shape of the frame. Two console scripts and a six-function Python API.
-Standard library only, no external binaries.
+and the shape of the frame. Three console scripts, six root-level convenience
+functions, and a typed `lith.call` API. Standard library only, no vendor SDKs or
+external binaries.
 
-**What lith is not.** It is not an image generator: no API keys, no vendor SDK,
-no model call anywhere in the codebase. `lith-generate --call` emits a JSON
-envelope; you or an agent make the call and hand the result back through
-`--image-url` or `--image-file`. It does not score or rank candidates, does not
-post to any platform, does not do video, and does not turn an existing post
-into a brief. Those stages are people, and lith is explicit about the handoff:
-`lith-run` with no image source prints its plan and exits 0.
+**What lith is not.** It is not a vendor SDK or an autonomous publisher.
+`lith-call` performs generation, but it does not score or rank candidates, post
+to any platform, do video, or turn an existing post into a brief. Candidate
+selection and publication remain explicit handoffs; `lith-run` with no image
+source prints its plan and exits 0.
 
 New here? Work through
 [Tutorial: your first announcement image](docs/tutorial-first-image.md) — a
-brief to a finished image in five steps, no API key required.
+brief to a finished image in six steps, with a path that needs no API key.
 
-Why the pipeline stops where it does:
+Where the pipeline draws its lines, and why it now makes the call itself:
 [About the pipeline](docs/explanation-pipeline.md). How the same spec renders
 seven ways: [About output styles](docs/explanation-output-styles.md). How panels
 get arranged: [About layouts](docs/explanation-layouts.md). The palette and
@@ -41,7 +40,7 @@ and [how to install it](#install-the-hermes-skill).
 
 - [Install](#install)
 - [Install the Hermes skill](#install-the-hermes-skill)
-- [CLI reference](#cli-reference) — [`lith-generate`](#lith-generate) · [`lith-run`](#lith-run)
+- [CLI reference](#cli-reference) — [`lith-generate`](#lith-generate) · [`lith-call`](#lith-call) · [`lith-run`](#lith-run)
 - [Python API](#python-api) — full detail in [the API reference](docs/reference-python-api.md)
 - [Recipe format](#recipe-format)
 - [Style families](#style-families)
@@ -85,24 +84,26 @@ uv sync --extra test
 ```
 
 `uv sync --extra test` creates `.venv/`, resolves `pyproject.toml`, and installs
-the project editable, which places `lith-generate` and `lith-run` in the venv.
+the project editable, which places `lith-generate`, `lith-call`, and `lith-run`
+in the venv.
 
 Verify:
 
 ```bash
 uv run lith-generate \
   --topic "test" --style B --aspect 16:9 --headline "32 LANGS" --icon "globe"
+uv run lith-call --help
 uv run python -c "from lith import render_prompt"
 ```
 
-Both print and exit 0.
+All three print and exit 0.
 
 ---
 
 ## Install the Hermes skill
 
 [`skills/lith/SKILL.md`](skills/lith/SKILL.md) lets a Hermes session drive the
-two CLIs on your behalf. It is a workflow wrapper only — every deterministic
+three CLIs on your behalf. It is a workflow wrapper only — every deterministic
 behavior lives in the `lith` package, which the skill assumes is already
 installed. Install the package first; the skill is useless without it.
 
@@ -147,15 +148,16 @@ Verify:
 ```bash
 test -f ~/.hermes/skills/lith/SKILL.md && echo "skill resolves"
 test ! -e ~/.hermes/skills/lith/lith  && echo "not nested"
-lith-generate --help >/dev/null && lith-run --help >/dev/null && echo "cli ok"
+lith-generate --help >/dev/null && lith-call --help >/dev/null \
+  && lith-run --help >/dev/null && echo "cli ok"
 ```
 
 All three lines must print. The second is what catches the nesting trap above —
 the first passes either way.
 
 Then ask the session for something the skill covers — "generate a family B
-announcement image for X" — and confirm it reaches for `lith-generate --call
---emit-json` rather than improvising a prompt.
+announcement image for X" — and confirm it checks the route before generating
+rather than improvising a prompt.
 
 To update the skill after pulling: symlink installs need nothing but a Hermes
 restart; copy installs need the `cp` re-run. To uninstall,
@@ -166,8 +168,8 @@ restart; copy installs need the `cp` re-run. To uninstall,
 Worth knowing before you hand a session the keys — the file is short and worth
 reading in full:
 
-- Render the envelope with `lith-generate --recipe ... --call --emit-json`,
-  call an image model with its fields, then finish through `lith-run`.
+- Run `lith-call --check`, generate with the selected route, then finish through
+  `lith-run --strict`.
 - Use absolute paths for recipes and images.
 - Ask the user to pick when candidate selection is subjective.
 - **Never publish, post, or upload without separate authorization.**
@@ -197,11 +199,11 @@ lith-generate --topic TEXT --style {A..G} --headline TEXT [options]
 | `--topic` | str | — | One-sentence brief. Required without `--recipe`. |
 | `--style` | `A`–`G` | — | Style family. Required without `--recipe`. |
 | `--headline` | str | — | In-image headline. Required without `--recipe`. |
-| `--aspect` | `16:9` `3:2` `4:3` `1:1` `3:4` `2:3` `9:16` | family default | Aspect ratio. Warns on stderr if the chosen model cannot produce it. |
+| `--aspect` | provider ratio union | family default | One of `1:1` `3:4` `4:3` `9:16` `16:9` `2:3` `3:2` `9:19.5` `19.5:9` `9:20` `20:9` `1:2` `2:1` `21:9` `auto`. Use a concrete ratio for `lith-call`. |
 | `--icon` | str | `gear` | Motif substituted into `{icon}`. |
 | `--n` | int | `4` | Candidate count recorded in the envelope. |
 | `--seed` | int | `None` | Seed recorded in the envelope. |
-| `--model` | see [Aspect ratios](#aspect-ratios) | `grok-imagine-image-2.0` | Model recorded in the envelope. Never called. |
+| `--model` | see [Aspect ratios](#aspect-ratios) | `grok-imagine-image-2.0` | Model recorded in the envelope for a later `lith-call`. |
 | `--out` | path | derived stem | Output path recorded in the envelope, verbatim. Without it, the derived value carries no extension. |
 | `--call` | flag | off | Emit the envelope instead of the summary. |
 | `--emit-json` | flag | off | With `--call`, emit JSON rather than `key=value` lines. |
@@ -210,12 +212,14 @@ With `--recipe`, the recipe's `model` and `n` win and `--model` / `--n` are
 ignored; `--seed`, `--out`, `--call`, and `--emit-json` still apply.
 
 Envelope fields, in order: `prompt`, `negative_prompt`, `aspect_ratio`,
-`model`, `n`, `seed`, `output_path`, `style`, `aspect_note`, `copy_note`.
+`model`, `n`, `seed`, `output_path`, `style`, `aspect_note`, `copy_note`,
+`limit_notes`.
 `aspect_note` is `null` unless the model forced a different ratio. `copy_note`
 is `null` unless the copy block is too thin for the template around it — a
 brief with no `sections` renders about sixteen characters of copy against
 fifteen hundred of instructions, and the model starts lettering the
-instructions instead.
+instructions instead. `limit_notes` names model-specific `n` or prompt-length
+violations without changing the prompt.
 
 ```bash
 uv run lith-generate --recipe recipes/live_test_recipe.json --call --emit-json
@@ -223,6 +227,57 @@ uv run lith-generate --recipe recipes/live_test_recipe.json --call --emit-json
 
 Exit codes: `0` on success, `2` on an argparse error (including a missing
 `--topic`/`--style`/`--headline` when `--recipe` is absent).
+
+### `lith-call`
+
+Turns a rendered recipe into real candidate bytes through xAI, OpenAI, or
+MiniMax. Inspect the route and exact provider payload before spending money.
+
+```
+lith-call --recipe PATH [--out DIR] [--n N] [--resolution {1k,2k}]
+          [--quality {low,medium,high}] [--seed N]
+          [--dry-run | --check | --auth] [--emit-json]
+```
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--recipe` | path | — | Recipe to render and call. Required except with `--auth`. |
+| `--out` | directory | recipe's output directory | Candidate directory. Files are `{family_key}_{slug}-c{index}.{ext}`. |
+| `--n` | int | recipe `n` | Overrides the candidate count for this call. Provider maxima are xAI/OpenAI 10 and MiniMax 9. |
+| `--resolution` | `1k` `2k` | — | xAI resolution. Other adapters report it in `unsupported`. |
+| `--quality` | `low` `medium` `high` | — | OpenAI quality. Other adapters report it in `unsupported`. |
+| `--seed` | int | — | MiniMax seed. Other adapters report it in `unsupported`. |
+| `--dry-run` | flag | off | Print the exact provider URL, redacted headers, request body, and unsupported fields; make no call. |
+| `--check` | flag | off | Print whether Hermes `image_generate` or `lith-call` preserves the recipe's model and aspect; make no call. |
+| `--auth` | flag | off | Report each provider's resolving credential tier and short fingerprint, never its value. `--recipe` is optional. |
+| `--emit-json` | flag | off | Emit JSON for `--auth`, `--check`, or a live result. `--dry-run` is always JSON. |
+
+`--dry-run`, `--check`, and `--auth` are mutually exclusive. A live call writes
+one file per `CallResult.candidates` entry, choosing the extension from the
+bytes rather than the model id. Human output also prints any reported model,
+aspect, revised prompt, cost, and every `unsupported` field; JSON output carries
+the same metadata plus the provider's raw response.
+
+Credentials resolve in this order: shell environment, the recipe repository's
+`.env`, `~/.hermes/.env`, then compatible OAuth entries in
+`~/.hermes/auth.json`. The strict variable names are `XAI_API_KEY`,
+`OPENAI_API_KEY`, and `MINIMAX_API_KEY`; copy [`.env.example`](.env.example) for
+a repo-local setup. A repo `.env` is ignored by Git. `lith-call --auth` shows
+which tier won.
+
+MiniMax is implemented but its 1500-character prompt cap is lower than every
+current integration recipe. The adapter raises before any network call and
+names the measured length and cap; compact templates are a separate design
+task.
+
+```bash
+uv run lith-call --check --recipe recipes/integration/24-aspect-ultrawide.json
+uv run lith-call --dry-run --recipe recipes/integration/01-stack-A.json
+uv run lith-call --recipe recipes/integration/01-stack-A.json --n 2 --emit-json
+```
+
+Exit codes: `0` on success and `2` on an argparse error. Credential, request,
+transport, or provider failures terminate nonzero without writing candidates.
 
 ### `lith-run`
 
@@ -302,7 +357,29 @@ rendered = render_prompt(recipe)
 
 `Recipe`, `FAMILY_KEYS`, `REQUIRED_BRIEF_KEYS`, `load_styles`, `get_family`, and
 `DEFAULT_PROMPT` are not in `__all__` but are importable from their modules and
-used by both console scripts.
+used by the console scripts.
+
+Provider calls live in the separate `lith.call` API:
+
+```python
+from lith import load_recipe, render_prompt
+from lith.call import ImageRequest, generate
+
+recipe = load_recipe("recipes/integration/01-stack-A.json")
+rendered = render_prompt(recipe)
+result = generate(ImageRequest(
+    prompt=rendered["prompt"],
+    model=recipe.model,
+    aspect=rendered["aspect_ratio"],
+    n=recipe.n,
+    negative_prompt=rendered["negative_prompt"],
+))
+```
+
+`result.candidates` always contains decoded bytes. `result.unsupported` makes
+every supplied field the selected provider could not accept visible; no adapter
+appends such a field to `prompt`. See the
+[full `lith.call` reference](docs/reference-python-api.md#lithcall).
 
 ---
 
@@ -452,22 +529,52 @@ Whatever those choose is then clamped to what the recipe's `model` can actually
 produce. A model does not reject a ratio it lacks; it silently substitutes one,
 so lith substitutes first and says so.
 
-| Model | Generation | Can produce |
+| Model | Capability variant | Limit |
 |---|---|---|
-| `grok-imagine-image-2.0` | current, **default** | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `2:1` `1:2` `20:9` `9:20` |
-| `gpt-image-2` | current | `1:1` `3:2` `2:3` `4:3` `3:4` `16:9` `9:16` `2:1` `1:2` `5:4` `4:5` `3:1` `1:3` `21:9` `9:21` |
-| `grok-imagine-image-quality`, `grok-imagine-image` | previous | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `2:1` `1:2` |
-| `gpt-image-1` | previous | `1:1` `3:2` `2:3` |
-| `minimax-image` | — | not listed, so never clamped |
+| `grok-imagine-image-2.0` (**default**) | ratio enum | `1:1` `3:4` `4:3` `9:16` `16:9` `2:3` `3:2` `9:19.5` `19.5:9` `9:20` `20:9` `1:2` `2:1` (`auto` is recorded but never sent) · `n ≤ 10` |
+| `grok-imagine-image-quality`, `grok-imagine-image` | ratio enum | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `2:1` `1:2` · `n ≤ 10` |
+| `gpt-image-2`, `gpt-image-2-2026-04-21` | constrained pixel range | edges divisible by 16 and ≤3840, ratio `1:3`–`3:1`, 655,360–8,294,400 pixels · `n ≤ 10` |
+| `gpt-image-1.5`, `gpt-image-1`, `gpt-image-1-mini` | fixed pixel sizes | `1024x1024` `1536x1024` `1024x1536` (`auto` is recorded but never sent) · `n ≤ 10` |
+| `image-01` | ratio enum | `1:1` `16:9` `4:3` `3:2` `2:3` `3:4` `9:16` `21:9` · `n ≤ 9` · prompt ≤1500 characters |
 
-The two current models share `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `3:2`, `2:3`,
-`2:1` and `1:2`, and every family default is drawn from that intersection.
-`gpt-image-2` drops `5:4`, `4:5`, `3:1`, `1:3` and `9:21` at 2K and 4K; lith
-does not request a resolution, so they are listed here. When a clamp happens, `lith-generate` prints
-`warning: ...` on stderr and sets `aspect_note` in the envelope; `lith-run`
-prints it as a `[warn]` line. `lith-run` also compares the *published* image's
-real dimensions against the request and warns when they differ by more than 2%,
-which catches a model that ignored the field entirely.
+`MODEL_ASPECTS` stores a `ModelCapability` for each row rather than a set.
+Exactly one of `ratio_enum`, `pixel_sizes`, or `pixel_range` is populated;
+`n_max` and optional `prompt_max_chars` travel with it. For OpenAI models,
+`pixel_size(model, aspect)` translates a ratio to `WIDTHxHEIGHT`: the 1.x line
+uses its fixed lookup, while `gpt-image-2` searches the constrained range.
+
+### Not every listed model can render a dense spec
+
+The table above is about *frames*. It says nothing about whether a model can
+letter forty lines of authored copy correctly, and they differ sharply. Measured
+across the integration testbed on 2026-08-16, one candidate per recipe:
+
+| Model | Dense spec copy |
+|---|---|
+| `grok-imagine-image-2.0`, `grok-imagine-image-quality`, `grok-imagine-image` | reliable — 16 of 17 rows letter-perfect |
+| `gpt-image-2`, `gpt-image-2-2026-04-21` | reliable |
+| `gpt-image-1.5` | reliable |
+| **`gpt-image-1`, `gpt-image-1-mini`** | **not suitable** |
+
+The 1.0 tier fails structurally rather than cosmetically: whole sections vanish,
+headings desync from the bodies beneath them, and panels duplicate. One row
+rendered `01 - THE MESH` above section 01's content and dropped section 02
+entirely; another printed `MagicONS` for `MagicDNS` and lost `04 - INGRESS`.
+The frames were exact and `lith-run --strict` exited 0 for every one of them —
+this is a copy-fidelity property, and no exit code detects it.
+
+Use `gpt-image-1` and `gpt-image-1-mini` for a title-and-subtitle poster, or not
+at all. For anything with sections, prefer `gpt-image-2`, `gpt-image-1.5`, or
+the Grok line.
+
+When a clamp happens, `lith-generate` prints `warning: ...` on stderr and sets
+`aspect_note` in the envelope; `lith-run` prints it as a `[warn]` line.
+`lith-call` prints the same warnings on stderr and carries `aspect_note`,
+`copy_note` and `limit_notes` in its `--emit-json` payload, including under
+`--check` and `--dry-run`.
+`lith-run` also compares the *published* image's real dimensions against the
+request and warns when they differ by more than 2%, which catches a provider
+that ignored the field entirely.
 
 ---
 
@@ -533,9 +640,10 @@ smoke test.
 uv run pytest
 ```
 
-Five modules under `tests/`, covering prompt rendering, layout and aspect
-resolution, both CLIs, the brief expander, and an end-to-end smoke test. The smoke test skips with a clear
-message when the reference artifact in `outputs/` is absent.
+The suite covers prompt rendering, layout and aspect resolution, all three
+CLIs, provider request/response fixtures, credential tiers, the brief expander,
+and an end-to-end smoke test. Provider adapter tests are offline. The smoke test
+skips with a clear message when the reference artifact in `outputs/` is absent.
 
 ---
 
@@ -550,9 +658,10 @@ message when the reference artifact in `outputs/` is absent.
 | Layout vocabulary (15 arrangements) | done |
 | Aspect resolution and per-model clamping | done |
 | Published-image aspect check | done |
+| Direct xAI/OpenAI/MiniMax provider layer | done — `lith-call` / `lith.call` |
+| Credential inspection and request dry-run | done |
 | Topic expansion (`expand_brief`) | done, library only — no CLI |
 | Hermes `SKILL.md` wrapper | done, shipped in `skills/`; [installed manually](#install-the-hermes-skill) |
-| Image-model call from the driver | not built — by design; see [About the pipeline](docs/explanation-pipeline.md#why-the-driver-never-calls-a-model) |
 | Candidate scoring | not built |
 | Video augmentation | out of scope; [rationale](docs/explanation-pipeline.md#deliberate-omissions) |
 | Post → brief ingestion | out of scope; [rationale](docs/explanation-pipeline.md#deliberate-omissions) |

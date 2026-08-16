@@ -1,8 +1,8 @@
 {
   "name": "integration-24-aspect-ultrawide",
-  "description": "Integration testbed row: family G, model grok-imagine-image-2.0.",
+  "description": "Integration testbed row: family G, model gpt-image-2.",
   "style": "G",
-  "model": "grok-imagine-image-2.0",
+  "model": "gpt-image-2",
   "n": 2,
   "brief": {
     "topic": "private tailscale mesh across three machines",

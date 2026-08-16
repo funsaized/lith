@@ -1,8 +1,8 @@
 {
   "name": "integration-04-grid-2x2-D",
-  "description": "Integration testbed row: family D, model grok-imagine-image.",
+  "description": "Integration testbed row: family D, model gpt-image-1.5.",
   "style": "D",
-  "model": "grok-imagine-image",
+  "model": "gpt-image-1.5",
   "n": 2,
   "brief": {
     "topic": "private tailscale mesh across three machines",

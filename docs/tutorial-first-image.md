@@ -10,9 +10,9 @@ By the end we will have produced this file:
 outputs/B_brutalist_32_langs.jpg
 ```
 
-We will do it in five moves: install, write a recipe, change its layout, emit a
-model call, and publish the result. Every command here is meant to run exactly
-as written, and none of them needs an API key.
+We will do it in six moves: install, write a recipe, change its layout, inspect
+the model call, generate, and publish. Every command here is meant to run
+exactly as written. Only step 5 can spend money, and it has a free path.
 
 ---
 
@@ -96,7 +96,6 @@ uv run lith-run --recipe recipes/tutorial_mesh.json
       - 32 languages, one image
   ...
 [output]      .../outputs/B_brutalist_32_langs.<jpg|png|webp>
-Next: call image_generate with the prompt, then re-run with --image-url or --image-file.
 ```
 
 Three things happened that we never asked for.
@@ -140,32 +139,97 @@ Set it back to `hero` (or delete the line) before continuing.
 
 ---
 
-## Step 4 — Emit the model call
+## Step 4 — Look at the call before making it
 
-The driver never calls an image model; we hand it one. Emit the
-machine-readable envelope:
+`lith-call` is the command that reaches a provider. Before it spends anything,
+ask it which road it plans to take:
 
 ```bash
-uv run lith-generate --recipe recipes/tutorial_mesh.json --call --emit-json
+uv run lith-call --check --recipe recipes/tutorial_mesh.json
 ```
 
-That JSON carries `prompt`, `negative_prompt`, `aspect_ratio`, `model`, `n`,
-`seed`, and `aspect_note` — everything an image-generation tool needs. Pass it
-to Grok or to a Hermes session, then pick the best of the four candidates and
-keep its URL.
+```
+route=lith-call
+reason=Hermes active model '...' does not match recipe model
+       'grok-imagine-image-2.0'; Hermes image_generate cannot preserve resolved
+       aspect '2:3'; it routes only 16:9, 1:1, 9:16
+```
 
-We don't need a model to finish this tutorial. The repository ships a real Grok
-result from this family, so we'll use it as our generated image:
+Your `reason` will name whatever model your Hermes install has configured. The
+`route` is what matters: when Hermes' tool cannot deliver the exact model *and*
+the exact frame, lith calls the provider directly.
+
+Now look at the request itself, still without touching the network:
+
+```bash
+uv run lith-call --dry-run --recipe recipes/tutorial_mesh.json
+```
+
+```json
+{
+  "provider": "xai",
+  "method": "POST",
+  "url": "https://api.x.ai/v1/images/generations",
+  "headers": {
+    "Authorization": "Bearer <redacted>"
+  },
+  "body": {
+    "model": "grok-imagine-image-2.0",
+    "prompt": "Single pure-black panel (#000000) overlaid with …",
+    "n": 4,
+    "aspect_ratio": "2:3",
+    "response_format": "b64_json"
+  },
+  "unsupported": {
+    "negative_prompt": "xAI image generation does not accept negative_prompt"
+  }
+}
+```
+
+This is the exact JSON that would go over the wire, with the credential
+redacted. Two things are worth noticing.
+
+The `aspect_ratio` is `2:3` — the frame lith derived in step 2, sent verbatim
+rather than rounded to something the provider finds convenient.
+
+And `unsupported` names a field xAI cannot accept. Lith reports it instead of
+folding it into `prompt`, because text smuggled into a prompt is text the model
+can letter into the image.
+
+---
+
+## Step 5 — Generate
+
+If you have a provider key, make the call:
+
+```bash
+uv run lith-call --recipe recipes/tutorial_mesh.json --n 1
+```
+
+```
+[done]        .../outputs/B_brutalist_32_langs-c0.jpg
+[model_reported] grok-imagine-image-2.0
+[unsupported] negative_prompt: xAI image generation does not accept negative_prompt
+```
+
+`model_reported` is the id the provider says actually served the request — not
+the one we asked for. When those differ, we want to know.
+
+**No key? We can still finish.** The repository ships a real Grok result from
+this family, so use it as our generated image:
 
 ```
 outputs/B_brutalist_32_langs_raw.jpg
 ```
 
+Either way we now hold a generated image. Lith did not pick it for us; choosing
+among candidates is our job.
+
 ---
 
-## Step 5 — Publish it
+## Step 6 — Publish it
 
-Hand that file to the driver:
+Hand the image to the driver:
 
 ```bash
 uv run lith-run \
@@ -175,12 +239,30 @@ uv run lith-run \
 
 ```
 [copy]        outputs/B_brutalist_32_langs_raw.jpg
+[warn]        aspect: requested 2:3 (0.667), received 1280x720 (1.778)
 [done]        .../outputs/B_brutalist_32_langs.jpg
 ```
 
 The driver read the file's magic bytes, saw JPEG, and published it as `.jpg` —
 the extension follows the bytes, not the recipe. Nothing was re-encoded: the
 published file is byte-identical to the one we fed in.
+
+That `[warn]` is the driver doing its job. It measured the image, got 16:9, and
+compared it against the `2:3` our recipe asked for. The shipped sample was
+generated for a different recipe, so the mismatch is real and lith says so —
+the layout in our prompt was composed for a portrait frame.
+
+Add `--strict` and that warning becomes an exit code:
+
+```bash
+uv run lith-run --recipe recipes/tutorial_mesh.json \
+  --image-file outputs/B_brutalist_32_langs_raw.jpg --strict
+echo $?          # 1
+```
+
+The file still publishes — the bytes are the evidence you need to see *how* the
+frame differs. Use `--strict` in any batch, where a warning would scroll past
+unread. On an image that really came from step 5, it exits `0`.
 
 Re-run the same command and it lands on the same path again. The output name is
 a function of the recipe, so a second run overwrites the first rather than
@@ -196,8 +278,11 @@ We turned an announcement into a finished graphic:
 2. `lith-run` dry-ran the plan, choosing a frame and an arrangement from the
    shape of our content.
 3. One key changed the arrangement without touching anything else.
-4. `lith-generate --call` produced the model call.
-5. `lith-run` validated a generated image and published it under a derived name.
+4. `lith-call --check` and `--dry-run` showed the route and the exact request
+   before anything was spent.
+5. `lith-call` generated candidates, reporting which model really served them.
+6. `lith-run` checked the delivered frame against the request and published
+   under a derived name.
 
 ## Where to go next
 
@@ -205,7 +290,7 @@ We turned an announcement into a finished graphic:
   [About layouts](explanation-layouts.md).
 - How the same recipe looks in each of the seven families —
   [About output styles](explanation-output-styles.md).
-- Why the copy is written down first rather than left to the model —
+- Why the copy is written down first, and why lith now makes the call itself —
   [About the pipeline](explanation-pipeline.md).
 - The palette, typography and composition rules the families share —
   [About the design language](explanation-design-language.md).

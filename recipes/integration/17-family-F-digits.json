@@ -1,8 +1,8 @@
 {
   "name": "integration-17-family-F-digits",
-  "description": "Integration testbed row: family F, model grok-imagine-image-2.0.",
+  "description": "Integration testbed row: family F, model grok-imagine-image-quality.",
   "style": "F",
-  "model": "grok-imagine-image-2.0",
+  "model": "grok-imagine-image-quality",
   "n": 2,
   "brief": {
     "topic": "private tailscale mesh across three machines",

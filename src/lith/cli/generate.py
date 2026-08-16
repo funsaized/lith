@@ -14,6 +14,7 @@ import pathlib
 import sys
 
 from lith import load_recipe, output_path, render_prompt
+from lith.aspect import request_limit_notes
 from lith.paths import default_output_dir
 from lith.recipe import FAMILY_KEYS
 from lith.styles import get_family, load_styles
@@ -34,7 +35,26 @@ def main() -> int:
     parser.add_argument("--recipe", type=pathlib.Path)
     parser.add_argument("--topic")
     parser.add_argument("--style", choices=list("ABCDEFG"))
-    parser.add_argument("--aspect", choices=["16:9", "3:2", "4:3", "1:1", "3:4", "2:3", "9:16"])
+    parser.add_argument(
+        "--aspect",
+        choices=[
+            "1:1",
+            "3:4",
+            "4:3",
+            "9:16",
+            "16:9",
+            "2:3",
+            "3:2",
+            "9:19.5",
+            "19.5:9",
+            "9:20",
+            "20:9",
+            "1:2",
+            "2:1",
+            "auto",
+            "21:9",
+        ],
+    )
     parser.add_argument("--headline")
     parser.add_argument("--icon", default="gear")
     parser.add_argument("--n", type=int, default=4)
@@ -47,8 +67,11 @@ def main() -> int:
             "grok-imagine-image-quality",
             "grok-imagine-image",
             "gpt-image-2",
+            "gpt-image-2-2026-04-21",
+            "gpt-image-1.5",
             "gpt-image-1",
-            "minimax-image",
+            "gpt-image-1-mini",
+            "image-01",
         ],
     )
     parser.add_argument("--out", type=pathlib.Path)
@@ -90,7 +113,8 @@ def main() -> int:
         )
 
     rendered = render_prompt(style, brief, model=model)
-    for note in (rendered["aspect_note"], rendered["copy_note"]):
+    limit_notes = request_limit_notes(model, n, rendered["prompt"])
+    for note in (rendered["aspect_note"], rendered["copy_note"], *limit_notes):
         if note:
             print(f"warning: {note}", file=sys.stderr, flush=True)
 
@@ -108,6 +132,7 @@ def main() -> int:
             # have to read stderr to learn the ratio was substituted.
             "aspect_note": rendered["aspect_note"],
             "copy_note": rendered["copy_note"],
+            "limit_notes": limit_notes,
         }
         if args.emit_json:
             print(json.dumps(envelope, indent=2))

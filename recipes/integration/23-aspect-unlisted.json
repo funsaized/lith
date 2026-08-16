@@ -1,8 +1,8 @@
 {
   "name": "integration-23-aspect-unlisted",
-  "description": "Integration testbed row: family E, model minimax-image.",
+  "description": "Integration testbed row: family E, model image-01.",
   "style": "E",
-  "model": "minimax-image",
+  "model": "image-01",
   "n": 2,
   "brief": {
     "topic": "private tailscale mesh across three machines",

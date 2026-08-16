@@ -145,6 +145,19 @@ publish. Checking is a human looking at candidates, which is
 [stage 4](explanation-pipeline.md#what-runs-and-what-doesnt) and deliberately
 unbuilt.
 
+It does now verify the *frame* the arrangement was composed for.
+`lith-run --strict` measures the published image and exits non-zero when the
+delivered ratio differs from the request, because a `zigzag` composed for `2:3`
+rendered into `16:9` has not landed whatever its panels are doing. That is a
+precondition for the arrangement being right, not evidence that it is.
+
+**Panel count is also a legibility decision, not only a compositional one.**
+`grid-3x3` in a landscape frame gives each panel roughly a tenth of the frame,
+and small text degrades before anything else does — see
+[About the design language → Failure modes](explanation-design-language.md#failure-modes).
+An arrangement that reads beautifully at nine panels and 2k can garble at nine
+panels and 1k.
+
 There is also no layout that positions a specific section. You can say "the
 first panel anchors the composition" via `hero`; you cannot say "put THE MESH in
 the bottom-left." Arrangements order panels as a set, in brief order.

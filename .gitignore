@@ -10,3 +10,7 @@ outputs/*
 !outputs/B_brutalist_32_langs_raw.jpg
 .worktrees/
 .coverage
+# Credentials: repo-local .env is tier 2 of lith-call's lookup. Never commit it.
+.env
+.env.*
+!.env.example

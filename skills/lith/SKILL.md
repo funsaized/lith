@@ -15,8 +15,9 @@ metadata:
 
 Use the `lith` Python package to generate tech announcement images through
 seven style families. Let the package handle deterministic prompt rendering,
-recipe loading, and output paths. Use the active session for image generation
-and optional topic expansion.
+recipe loading, provider calls, and output paths. Use the active session for
+optional topic expansion and for image generation only when the routing rule
+below selects Hermes.
 
 ## When to use
 
@@ -32,38 +33,76 @@ and optional topic expansion.
 
 ## Workflow
 
-1. Render the recipe and obtain the model-call envelope:
+1. Inspect routing before generating. This is mandatory before every sweep,
+   even when the intended provider seems obvious:
+
+   ```bash
+   lith-call --check --recipe /absolute/path/to/recipe.json
+   ```
+
+   The command prints `route=image_generate` or `route=lith-call` and the
+   specific reason. Do not substitute a remembered routing decision for this
+   check; the recipe, resolved aspect, and Hermes configuration can change.
+
+2. Follow the reported route exactly. Hermes `image_generate` is allowed only
+   when both conditions hold:
+
+   - Hermes' active model (`~/.hermes/config.yaml` → `image_gen.model`, falling
+     back to `FAL_IMAGE_MODEL`) exactly equals the recipe's model.
+   - The resolved aspect is exactly `16:9`, `1:1`, or `9:16`.
+
+   Any model mismatch or any other ratio routes to `lith-call`. A matching
+   model alone is insufficient because Hermes reduces aspect ratios to three
+   buckets.
+
+3. For `route=lith-call`, inspect the exact provider payload without resolving
+   credentials or spending money, then make the call:
+
+   ```bash
+   lith-call --dry-run --recipe /absolute/path/to/recipe.json
+   lith-call --recipe /absolute/path/to/recipe.json --out /absolute/path/to/candidates
+   ```
+
+   Use `--n`, `--resolution 1k|2k`, `--quality low|medium|high`, or `--seed`
+   when the job requires an override. Add `--emit-json` to the live command for
+   candidate paths and `CallResult` metadata. Candidate files are named
+   `{stem}-c{i}.<jpg|png|webp>`, with the extension determined from their bytes.
+   Use `lith-call --auth --recipe /absolute/path/to/recipe.json` to inspect each
+   provider's resolving tier, source, and fingerprint without exposing a key.
+
+4. For `route=image_generate`, render the envelope and pass only the fields the
+   active tool accepts:
 
    ```bash
    lith-generate --recipe /absolute/path/to/recipe.json --call --emit-json
    ```
 
-2. Call the available image-generation tool with `prompt`, `aspect_ratio`,
-   `model`, `n`, and any other envelope fields that provider supports. Keep
-   `negative_prompt` in the envelope because FAL/Flux backends accept it. When
-   the selected provider does not, do not send it: preserve `prompt` verbatim
-   and require the adapter to record `negative_prompt` and the reason in
+   Keep `negative_prompt` in the envelope because FAL/Flux backends accept it.
+   When the selected provider does not, do not send it: preserve `prompt`
+   verbatim and record `negative_prompt` and the reason in
    `CallResult.unsupported`. Ask the user to choose when multiple candidates
    require subjective selection.
 
-3. Pass the chosen HTTP(S) image URL to the driver, which validates it and
+5. Pass the chosen local candidate to the driver, which validates it and
    publishes it under the recipe's deterministic output path:
 
    ```bash
-   lith-run --recipe /absolute/path/to/recipe.json --image-url <url> --strict
+   lith-run --recipe /absolute/path/to/recipe.json \
+     --image-file /absolute/path/to/candidate.png --strict
    ```
+
+   For a Hermes result that exists only at an HTTP(S) URL, use `--image-url`
+   instead.
 
    The published extension follows the returned bytes (`.jpg`, `.png`, or
    `.webp`); the image is never re-encoded.
 
-   Never write the model's bytes to disk any other way. `lith-run` is the only
-   step that checks the delivered frame against the one the prompt was composed
-   for, and a generation tool may quietly substitute a different one. Add
-   `--strict` in any batch or sweep so a substituted frame exits 1 instead of
-   printing a warning that scrolls past.
-
-4. Use `--image-file /absolute/path/to/image` instead of `--image-url` for a
-   local source.
+   Treat `lith-call` files as raw candidates, not published artifacts. Always
+   pass the selected candidate through `lith-run`: it is the step that checks
+   the delivered frame against the one the prompt was composed for, and a
+   generation tool may quietly substitute a different one. Add `--strict` in
+   any batch or sweep so a substituted frame exits 1 instead of printing a
+   warning that scrolls past.
 
 Use the library directly when lith is installed in the active Python
 environment:
@@ -140,7 +179,13 @@ labels it names appear as text.
 
 ## Verification
 
-- Confirm `lith-generate --help` and `lith-run --help` exit 0.
+- Confirm `lith-generate --help`, `lith-call --help`, and `lith-run --help`
+  exit 0.
+- Before a sweep, confirm `lith-call --check --recipe PATH` reports the expected
+  route and retain its reason with the run log.
+- For a `lith-call` route, inspect `lith-call --dry-run --recipe PATH` and
+  confirm the exact model, prompt, candidate count, aspect, and provider extras
+  before the first paid request.
 - Confirm `python -c "from lith import render_prompt"` exits 0 in environments
   that install lith as a library dependency.
 - Confirm `lith-run` exited 0. A published file is not the success signal —

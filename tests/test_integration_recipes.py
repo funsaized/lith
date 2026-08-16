@@ -92,8 +92,15 @@ def test_testbed_covers_every_family_and_model():
     families = {d["style"] for d in docs}
     assert families == set("ABCDEFG"), f"families missing: {set('ABCDEFG') - families}"
     models = {d["model"] for d in docs}
-    assert set(MODEL_ASPECTS) <= models, f"models missing: {set(MODEL_ASPECTS) - models}"
-    assert "minimax-image" in models, "an unlisted model must be exercised too"
+    # P0-2 corrects the capability table before P0-9 migrates the testbed.  In
+    # this interval the old recipe ids remain deliberate fixtures, but no other
+    # unknown model may enter.  P0-9 restores exhaustive table coverage.
+    legacy_recipe_ids = {
+        "grok-imagine-image-quality", "grok-imagine-image", "minimax-image",
+    }
+    unknown = models - set(MODEL_ASPECTS) - legacy_recipe_ids
+    assert not unknown, f"unrecognised recipe models: {unknown}"
+    assert {"grok-imagine-image-2.0", "gpt-image-2", "gpt-image-1"} <= models
 
 
 def test_testbed_covers_every_aspect_resolution_rung():

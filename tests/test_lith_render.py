@@ -31,7 +31,7 @@ def test_load_recipe_validates_required_fields(tmp_path):
                     "icon": "i",
                     "aspect": "16:9",
                 },
-                "model": "grok-imagine-image-quality",
+                "model": "grok-imagine-image-2.0",
             }
         )
     )
@@ -216,16 +216,16 @@ def test_unsupported_aspect_names_what_the_model_can_do():
     from lith.aspect import unsupported_aspect
 
     # The defect this exists to prevent: grok has no 4:5 and substitutes silently.
-    msg = unsupported_aspect("grok-imagine-image-quality", "4:5")
+    msg = unsupported_aspect("grok-imagine-image-2.0", "4:5")
     assert msg and "cannot produce 4:5" in msg
 
     # gpt-image-1 is narrower still — 16:9 is fine on grok, not on OpenAI.
     assert unsupported_aspect("gpt-image-1", "16:9")
-    assert unsupported_aspect("grok-imagine-image-quality", "16:9") is None
+    assert unsupported_aspect("grok-imagine-image-2.0", "16:9") is None
 
     # 2:3 is the portrait ratio both can produce; every family default must pass.
     assert unsupported_aspect("gpt-image-1", "2:3") is None
-    assert unsupported_aspect("grok-imagine-image-quality", "2:3") is None
+    assert unsupported_aspect("grok-imagine-image-2.0", "2:3") is None
 
     # An unknown model is unconstrained rather than wrongly flagged.
     assert unsupported_aspect("some-future-model", "4:5") is None
@@ -238,7 +238,7 @@ def test_every_family_default_aspect_is_producible():
     styles = load_styles()
     for letter in "ABCDEFG":
         aspect = get_family(styles, letter)["default_aspect"]
-        bad = unsupported_aspect("grok-imagine-image-quality", aspect)
+        bad = unsupported_aspect("grok-imagine-image-2.0", aspect)
         assert bad is None, f"family {letter}: {bad}"
 
 
@@ -419,7 +419,7 @@ def test_aspect_is_optional_so_derivation_is_reachable(tmp_path):
     """A recipe that pins aspect can never exercise the content-shape rung."""
     p = tmp_path / "r.json"
     p.write_text(json.dumps({
-        "style": "D", "model": "grok-imagine-image-quality",
+        "style": "D", "model": "grok-imagine-image-2.0",
         "brief": {"topic": "t", "headline": "H", "icon": "gear",
                   "sections": [{"heading": f"0{i}", "lines": ["x"]} for i in range(4)]},
     }))
@@ -455,11 +455,7 @@ def test_current_generation_models_are_known():
 
     assert "grok-imagine-image-2.0" in MODEL_ASPECTS
     assert "gpt-image-2" in MODEL_ASPECTS
-    # 2.0 adds the ultra-wide pair the 1.x line lacks.
-    assert (
-        MODEL_ASPECTS["grok-imagine-image-2.0"].ratio_enum
-        > MODEL_ASPECTS["grok-imagine-image"].ratio_enum
-    )
+    assert "9:19.5" in MODEL_ASPECTS["grok-imagine-image-2.0"].ratio_enum
     # 16:9 was unreachable on gpt-image-1 and clamped to 3:2; gpt-image-2 has it.
     assert nearest_supported("gpt-image-1", "16:9") == "3:2"
     assert nearest_supported("gpt-image-2", "16:9") == "16:9"
@@ -500,6 +496,50 @@ def test_model_capabilities_express_all_three_aspect_variants_and_limits():
         ratio_enum=frozenset({"1:1"}), n_max=9, prompt_max_chars=1500
     )
     assert prompt_limited.prompt_max_chars == 1500
+
+
+def test_capability_table_is_a_literal_transcription_of_provider_facts():
+    """Every model and limit below is transcribed from backlog section 2."""
+    from lith.aspect import MODEL_ASPECTS, ModelCapability, PixelSizeRange
+
+    xai_ratios = frozenset({
+        "1:1", "3:4", "4:3", "9:16", "16:9", "2:3", "3:2",
+        "9:19.5", "19.5:9", "9:20", "20:9", "1:2", "2:1", "auto",
+    })
+    minimax_ratios = frozenset({
+        "1:1", "16:9", "4:3", "3:2", "2:3", "3:4", "9:16", "21:9",
+    })
+    openai_1x_sizes = ("1024x1024", "1536x1024", "1024x1536", "auto")
+    gpt_image_2_range = PixelSizeRange(
+        edge_multiple=16,
+        min_aspect=1 / 3,
+        max_aspect=3,
+        min_pixels=655_360,
+        max_pixels=8_294_400,
+        max_edge=3840,
+        allows_auto=True,
+    )
+    expected = {
+        "grok-imagine-image-2.0": ModelCapability(
+            ratio_enum=xai_ratios, n_max=10
+        ),
+        "gpt-image-2": ModelCapability(pixel_range=gpt_image_2_range, n_max=10),
+        "gpt-image-2-2026-04-21": ModelCapability(
+            pixel_range=gpt_image_2_range, n_max=10
+        ),
+        "gpt-image-1.5": ModelCapability(pixel_sizes=openai_1x_sizes, n_max=10),
+        "gpt-image-1": ModelCapability(pixel_sizes=openai_1x_sizes, n_max=10),
+        "gpt-image-1-mini": ModelCapability(
+            pixel_sizes=openai_1x_sizes, n_max=10
+        ),
+        "image-01": ModelCapability(
+            ratio_enum=minimax_ratios, n_max=9, prompt_max_chars=1500
+        ),
+    }
+
+    assert MODEL_ASPECTS == expected
+    assert "minimax-image" not in MODEL_ASPECTS
+    assert "image-01-live" not in MODEL_ASPECTS
 
 
 def test_model_capability_requires_exactly_one_aspect_variant():

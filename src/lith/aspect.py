@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from math import gcd
 from typing import Any
 
+
 @dataclass(frozen=True)
 class PixelSizeRange:
     """Constraints on a model that accepts arbitrary concrete pixel sizes."""
@@ -78,11 +79,25 @@ class ModelCapability:
         )
 
 
-# A model absent from the table is treated as unconstrained.  The values below
-# intentionally retain their pre-P0-2 model coverage; correcting and expanding
-# the entries is the next task.
-_GROK_1X = frozenset(
-    {"1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "2:1", "1:2"}
+# A model absent from the table is treated as unconstrained.
+_XAI_RATIOS = frozenset(
+    {
+        "1:1", "3:4", "4:3", "9:16", "16:9", "2:3", "3:2",
+        "9:19.5", "19.5:9", "9:20", "20:9", "1:2", "2:1", "auto",
+    }
+)
+_MINIMAX_RATIOS = frozenset(
+    {"1:1", "16:9", "4:3", "3:2", "2:3", "3:4", "9:16", "21:9"}
+)
+_OPENAI_1X_SIZES = ("1024x1024", "1536x1024", "1024x1536", "auto")
+_GPT_IMAGE_2_RANGE = PixelSizeRange(
+    edge_multiple=16,
+    min_aspect=1 / 3,
+    max_aspect=3,
+    min_pixels=655_360,
+    max_pixels=8_294_400,
+    max_edge=3840,
+    allows_auto=True,
 )
 _GPT_IMAGE_2_RESOLVER_SAMPLES = frozenset(
     {
@@ -92,27 +107,16 @@ _GPT_IMAGE_2_RESOLVER_SAMPLES = frozenset(
 )
 
 MODEL_ASPECTS: dict[str, ModelCapability] = {
-    # Current generation.
-    "grok-imagine-image-2.0": ModelCapability(
-        ratio_enum=_GROK_1X | {"20:9", "9:20"}, n_max=10
+    "grok-imagine-image-2.0": ModelCapability(ratio_enum=_XAI_RATIOS, n_max=10),
+    "gpt-image-2": ModelCapability(pixel_range=_GPT_IMAGE_2_RANGE, n_max=10),
+    "gpt-image-2-2026-04-21": ModelCapability(
+        pixel_range=_GPT_IMAGE_2_RANGE, n_max=10
     ),
-    "gpt-image-2": ModelCapability(
-        pixel_range=PixelSizeRange(
-            edge_multiple=16,
-            min_aspect=1 / 3,
-            max_aspect=3,
-            min_pixels=655_360,
-            max_pixels=8_294_400,
-            max_edge=3840,
-            allows_auto=True,
-        ),
-        n_max=10,
-    ),
-    # Previous generation, still callable.
-    "grok-imagine-image-quality": ModelCapability(ratio_enum=_GROK_1X, n_max=10),
-    "grok-imagine-image": ModelCapability(ratio_enum=_GROK_1X, n_max=10),
-    "gpt-image-1": ModelCapability(
-        pixel_sizes=("1024x1024", "1536x1024", "1024x1536", "auto"), n_max=10
+    "gpt-image-1.5": ModelCapability(pixel_sizes=_OPENAI_1X_SIZES, n_max=10),
+    "gpt-image-1": ModelCapability(pixel_sizes=_OPENAI_1X_SIZES, n_max=10),
+    "gpt-image-1-mini": ModelCapability(pixel_sizes=_OPENAI_1X_SIZES, n_max=10),
+    "image-01": ModelCapability(
+        ratio_enum=_MINIMAX_RATIOS, n_max=9, prompt_max_chars=1500
     ),
 }
 
@@ -164,7 +168,7 @@ def _resolver_ratios(model: str, capability: ModelCapability) -> frozenset[str]:
         return capability.ratio_enum - {"auto"}
     if capability.pixel_sizes is not None:
         return _pixel_size_ratios(capability.pixel_sizes)
-    if model == "gpt-image-2":
+    if capability.pixel_range is not None:
         return _GPT_IMAGE_2_RESOLVER_SAMPLES
     return frozenset()
 

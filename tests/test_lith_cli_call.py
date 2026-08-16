@@ -124,12 +124,21 @@ def test_dry_run_prompt_too_long_is_one_error_line_without_traceback(
     )
     assert _main(monkeypatch, "--dry-run", "--recipe", path) == 1
 
+    # Derived, not hardcoded: the message must report the length this recipe
+    # actually renders to, so an edit to any template cannot make the error
+    # quietly stale. A literal here breaks on every prompt change instead.
+    from lith import load_recipe, render_prompt
+
+    expected = len(render_prompt(load_recipe(path))["prompt"])
+    assert expected > 1500, "this recipe must exceed MiniMax's cap to be a fixture"
+
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "Traceback" not in captured.err
     assert captured.err.splitlines() == [
-        "MiniMax prompt length is 2660 characters; cap is 1500. See backlog §3.1: "
-        "lith testbed prompts require compact templates before MiniMax can render them"
+        f"MiniMax prompt length is {expected} characters; cap is 1500. See "
+        "backlog §3.1: lith testbed prompts require compact templates before "
+        "MiniMax can render them"
     ]
 
 

@@ -356,3 +356,22 @@ def test_testbed_output_stems_collide_so_a_sweep_must_isolate_them():
     }
     assert len(stems) < len(RECIPES)
     assert len(stems) == 7, f"one stem per family expected, got {sorted(stems)}"
+
+
+def test_no_template_puts_text_after_the_spec_block():
+    """The copy block must be the last thing in the prompt.
+
+    Every template declares the spec block "the ONLY text that may appear",
+    then historically appended a Mood line after it — 50-94 characters of
+    prose sitting in the most recent position, contradicting the sentence
+    above it. On a title-only brief that trailing line was longer than the
+    copy block, and A_sticker lettered its Mood line verbatim into a poster.
+    """
+    for key, family in load_styles()["families"].items():
+        template = family["prompt_template"]
+        assert "{spec}" in template, f"{key} has no spec slot"
+        trailing = template.split("{spec}", 1)[1].strip()
+        assert not trailing, (
+            f"{key} places {len(trailing)} characters after the copy block: "
+            f"{trailing[:60]!r}"
+        )

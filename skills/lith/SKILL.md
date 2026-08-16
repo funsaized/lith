@@ -38,9 +38,13 @@ and optional topic expansion.
    lith-generate --recipe /absolute/path/to/recipe.json --call --emit-json
    ```
 
-2. Call the available image-generation tool with `prompt`,
-   `negative_prompt`, `aspect_ratio`, `model`, and `n`. Ask the user to choose
-   when multiple candidates require subjective selection.
+2. Call the available image-generation tool with `prompt`, `aspect_ratio`,
+   `model`, `n`, and any other envelope fields that provider supports. Keep
+   `negative_prompt` in the envelope because FAL/Flux backends accept it. When
+   the selected provider does not, do not send it: preserve `prompt` verbatim
+   and require the adapter to record `negative_prompt` and the reason in
+   `CallResult.unsupported`. Ask the user to choose when multiple candidates
+   require subjective selection.
 
 3. Pass the chosen HTTP(S) image URL to the driver, which validates it and
    publishes it under the recipe's deterministic output path:
@@ -123,11 +127,12 @@ labels it names appear as text.
 - Report which of `prompt`, `negative_prompt`, `aspect_ratio`, `model` and `n`
   the generation tool actually accepted. A tool that ignores a field still
   returns an image, so a run can look clean while the envelope was discarded.
-- Never concatenate an envelope field into the `prompt` string when the tool
-  has no parameter for it. A negative prompt pasted into a positive prompt asks
-  the model *for* what it was meant to forbid, and every smuggled line is more
-  text the model can letter into the frame. Report the field as unavailable and
-  leave the prompt untouched.
+- Never concatenate, prepend, or append an envelope field to the `prompt`
+  string when the provider has no parameter for it. A negative prompt pasted
+  into a positive prompt asks the model *for* what it was meant to forbid, and
+  every smuggled line is more text the model can letter into the frame. Keep
+  `negative_prompt` for FAL/Flux, but for every unsupported provider record it
+  in `CallResult.unsupported` and leave `prompt` untouched.
 - Expect deterministic output paths to overwrite an earlier run.
 - Use only HTTP(S) URLs with `--image-url`.
 - Expect a brief with no `sections` to render a title-only poster in any

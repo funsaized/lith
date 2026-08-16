@@ -46,6 +46,13 @@ the step it can't do comes in the middle.
 aspect ratio, model, n, seed, output path, style, aspect note — and stops. Someone else makes
 the call and hands the result back via `--image-url` or `--image-file`.
 
+`negative_prompt` stays in that envelope because FAL/Flux backends accept it.
+For a provider that does not, the provider adapter must leave the request's
+`prompt` byte-for-byte unchanged and record the rejected field and reason in
+`CallResult.unsupported`. It must never append or prepend a negative prompt (or
+any other unsupported field) to `prompt`: doing so reverses the negative
+instruction and gives the model more text it may letter into the image.
+
 Three reasons this split is worth the extra hop:
 
 **No credentials, no vendor SDK, no network in the library.** Lith has zero
@@ -118,7 +125,10 @@ below exactly as written, spelled character for character, in the structure
 given; do not invent, paraphrase, abbreviate, translate, reorder, or add any
 word that is not listed here.* The negative prompt pushes the same way —
 `invented words`, `lorem ipsum`, `misspelled words`. The model still draws the
-glyphs, but it is never the author.
+glyphs, but it is never the author. That field is useful only on backends such
+as FAL/Flux that expose a negative-prompt parameter. On providers that do not,
+it is surfaced in `CallResult.unsupported`, not concatenated into the positive
+prompt.
 
 `layout.format_layout` is the other half. It emits only the zones the brief
 actually has copy for, arranged by one of

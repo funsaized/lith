@@ -456,12 +456,63 @@ def test_current_generation_models_are_known():
     assert "grok-imagine-image-2.0" in MODEL_ASPECTS
     assert "gpt-image-2" in MODEL_ASPECTS
     # 2.0 adds the ultra-wide pair the 1.x line lacks.
-    assert MODEL_ASPECTS["grok-imagine-image-2.0"] > MODEL_ASPECTS["grok-imagine-image"]
-    # gpt-image-2 lifts gpt-image-1's three-ratio ceiling.
-    assert MODEL_ASPECTS["gpt-image-2"] > MODEL_ASPECTS["gpt-image-1"]
+    assert (
+        MODEL_ASPECTS["grok-imagine-image-2.0"].ratio_enum
+        > MODEL_ASPECTS["grok-imagine-image"].ratio_enum
+    )
     # 16:9 was unreachable on gpt-image-1 and clamped to 3:2; gpt-image-2 has it.
     assert nearest_supported("gpt-image-1", "16:9") == "3:2"
     assert nearest_supported("gpt-image-2", "16:9") == "16:9"
+
+
+def test_model_capabilities_express_all_three_aspect_variants_and_limits():
+    from lith.aspect import MODEL_ASPECTS, ModelCapability, PixelSizeRange
+
+    ratio_enum = MODEL_ASPECTS["grok-imagine-image-2.0"]
+    assert ratio_enum.ratio_enum is not None
+    assert ratio_enum.pixel_sizes is None
+    assert ratio_enum.pixel_range is None
+    assert ratio_enum.n_max == 10
+
+    fixed_sizes = MODEL_ASPECTS["gpt-image-1"]
+    assert fixed_sizes.pixel_sizes == (
+        "1024x1024", "1536x1024", "1024x1536", "auto",
+    )
+    assert fixed_sizes.ratio_enum is None
+    assert fixed_sizes.pixel_range is None
+    assert fixed_sizes.n_max == 10
+
+    constrained = MODEL_ASPECTS["gpt-image-2"]
+    assert constrained.pixel_range == PixelSizeRange(
+        edge_multiple=16,
+        min_aspect=1 / 3,
+        max_aspect=3,
+        min_pixels=655_360,
+        max_pixels=8_294_400,
+        max_edge=3840,
+        allows_auto=True,
+    )
+    assert constrained.ratio_enum is None
+    assert constrained.pixel_sizes is None
+    assert constrained.n_max == 10
+
+    prompt_limited = ModelCapability(
+        ratio_enum=frozenset({"1:1"}), n_max=9, prompt_max_chars=1500
+    )
+    assert prompt_limited.prompt_max_chars == 1500
+
+
+def test_model_capability_requires_exactly_one_aspect_variant():
+    from lith.aspect import ModelCapability
+
+    with pytest.raises(ValueError, match="exactly one aspect variant"):
+        ModelCapability(n_max=1)
+    with pytest.raises(ValueError, match="exactly one aspect variant"):
+        ModelCapability(
+            n_max=1,
+            ratio_enum=frozenset({"1:1"}),
+            pixel_sizes=("1024x1024",),
+        )
 
 
 def test_default_model_is_current_generation(tmp_path):

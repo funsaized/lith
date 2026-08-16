@@ -87,7 +87,7 @@ Credential presence does not enable live tests. A populated `XAI_API_KEY`,
 | `test_integration_recipes.py` | The 34-recipe testbed under `recipes/integration/`, driven through both prompt-side CLIs in-process. Layout, diagram-position, family, model, and aspect-rung coverage assertions. |
 | `test_lith_cli.py` | `lith-generate` argument handling and envelope shape. |
 | `test_lith_cli_call.py` | `lith-call` routing, `--check`, `--dry-run`, `--auth`, render-note surfacing, candidate writing. |
-| `test_lith_cli_run.py` | `lith-run` publish path, `--strict`, overwrite warning, `aspect_mismatch`. |
+| `test_lith_cli_plate.py` | `lith-plate` publish path, `--strict`, overwrite warning, `aspect_mismatch`. |
 | `test_lith_call.py` | `ImageRequest`, `Candidate`, `CallResult`, dispatcher behaviour. |
 | `test_lith_creds.py` | Four-tier credential resolution, `base_url` validation, `api_key` pool-entry rejection, missing-key message. |
 | `test_lith_http.py` | JSON transport, retry, redaction, and the mapping from HTTP and provider payloads to the error hierarchy. |
@@ -119,7 +119,7 @@ scores `100.0`.
 |---|---|---|
 | `recipe-generation` | `lith.expand`, `lith.recipe`, `lith.render`, `lith.aspect`, `lith.layout`, `lith.styles`, `lith.paths`, `lith.cli.generate` | `test_recipe_generation_integration.py`, `test_integration_recipes.py`, `test_lith_expand.py`, `test_lith_render.py`, `test_lith_cli.py` |
 | `provider-invocation` | `lith.call`, `lith.cli.call` | `test_lith_call.py`, `test_lith_cli_call.py`, `test_lith_creds.py`, `test_lith_http.py`, `test_lith_minimax.py`, `test_lith_openai.py`, `test_lith_xai.py` |
-| `output-validation` | `lith.imagebytes`, `lith.cli.run` | `test_output_integration.py`, `test_lith_cli_run.py`, `test_lith_smoke_e2e.py`, `test_integration_recipes.py` |
+| `output-validation` | `lith.imagebytes`, `lith.cli.plate` | `test_output_integration.py`, `test_lith_cli_plate.py`, `test_lith_smoke_e2e.py`, `test_integration_recipes.py` |
 
 **Output.** One line per capability, then exit `0` when all pass or `1` with a
 summary line on stderr naming each failure.

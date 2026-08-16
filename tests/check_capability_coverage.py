@@ -37,10 +37,10 @@ CAPABILITIES = {
         ],
     },
     "output-validation": {
-        "source": "lith.imagebytes,lith.cli.run",
+        "source": "lith.imagebytes,lith.cli.plate",
         "tests": [
             "tests/test_output_integration.py",
-            "tests/test_lith_cli_run.py",
+            "tests/test_lith_cli_plate.py",
             "tests/test_lith_smoke_e2e.py",
             "tests/test_integration_recipes.py",
         ],

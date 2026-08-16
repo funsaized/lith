@@ -180,8 +180,8 @@ def test_generate_cli_emits_an_envelope(path, monkeypatch, capsys):
 
 
 @pytest.mark.parametrize("path", RECIPES, ids=lambda p: p.stem)
-def test_run_cli_dry_runs(path, monkeypatch, capsys, tmp_path):
-    rc = _main("lith.cli.run",
+def test_plate_cli_dry_runs(path, monkeypatch, capsys, tmp_path):
+    rc = _main("lith.cli.plate",
                ["--recipe", str(path), "--output-dir", str(tmp_path)], monkeypatch)
     assert rc == 0
     out = capsys.readouterr().out
@@ -189,14 +189,14 @@ def test_run_cli_dry_runs(path, monkeypatch, capsys, tmp_path):
     assert not list(tmp_path.iterdir()), "a dry run must write nothing"
 
 
-def test_run_cli_publishes_across_the_testbed(monkeypatch, tmp_path):
+def test_plate_cli_publishes_across_the_testbed(monkeypatch, tmp_path):
     """Publishing is format- and family-independent, so a sample suffices."""
     src = pathlib.Path(__file__).resolve().parents[1] / "outputs" / "B_brutalist_32_langs_raw.jpg"
     if not src.is_file():
         pytest.skip("reference artifact missing")
     for path in RECIPES[:6]:
         out = tmp_path / path.stem
-        rc = _main("lith.cli.run",
+        rc = _main("lith.cli.plate",
                    ["--recipe", str(path), "--image-file", str(src),
                     "--output-dir", str(out)], monkeypatch)
         assert rc == 0
@@ -301,7 +301,7 @@ def test_run_rejects_a_non_image_file(monkeypatch, tmp_path):
     junk = tmp_path / "not-an-image.jpg"
     junk.write_text("<html>rate limited</html>")
     with pytest.raises(ValueError, match="not a recognized image format"):
-        _main("lith.cli.run",
+        _main("lith.cli.plate",
               ["--recipe", str(RECIPES[0]), "--image-file", str(junk),
                "--output-dir", str(tmp_path)], monkeypatch)
 
@@ -311,7 +311,7 @@ def test_run_publishes_png_bytes_under_a_png_name(monkeypatch, tmp_path):
     src = tmp_path / "candidate.jpg"          # deliberately mislabelled
     src.write_bytes(_png(1024, 1536))
     out = tmp_path / "published"
-    rc = _main("lith.cli.run",
+    rc = _main("lith.cli.plate",
                ["--recipe", str(RECIPES[0]), "--image-file", str(src),
                 "--output-dir", str(out)], monkeypatch)
     assert rc == 0
@@ -369,7 +369,7 @@ def test_testbed_output_stems_collide_so_a_sweep_must_isolate_them():
 
     This is `output_path` working as documented, not a bug — but a sweep that
     publishes them all into one directory keeps 7 files and loses 27, which is
-    exactly what pushed an earlier harness into bypassing lith-run entirely.
+    exactly what pushed an earlier harness into bypassing lith-plate entirely.
     """
     stems = {
         output_path(pathlib.Path("/out"), load_recipe(p).family_key,

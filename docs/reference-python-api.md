@@ -28,7 +28,7 @@ wherever a signature says `path`.
 - [`lith.imagebytes`](#lithimagebytes)
 - [`lith.cli.generate`](#lithcligenerate)
 - [`lith.cli.call`](#lithclicall)
-- [`lith.cli.run`](#lithclirun)
+- [`lith.cli.plate`](#lithclirun)
 - [Exception summary](#exception-summary)
 - [Side effects and determinism](#side-effects-and-determinism)
 
@@ -59,7 +59,7 @@ src/lith/
 └── cli/
     ├── generate.py      lith-generate entry point
     ├── call.py          lith-call entry point
-    └── run.py           lith-run entry point
+    └── plate.py         lith-plate entry point
 ```
 
 The prompt side remains pure and points downward only:
@@ -248,7 +248,7 @@ This never blocks rendering. A title-only poster is a legitimate request, and
 [`format_layout`](#format_layout) already emits only the zones the brief has
 copy for. The note exists so the caller learns before the call rather than
 after, and it reaches them three ways: on stderr from `lith-generate`, as a
-`[warn]` line from `lith-run`, and as the envelope's `copy_note` field.
+`[warn]` line from `lith-plate`, and as the envelope's `copy_note` field.
 
 ### `_palette_value`
 
@@ -1347,9 +1347,9 @@ is permitted.
 
 ---
 
-## `lith.cli.run`
+## `lith.cli.plate`
 
-Entry point for `lith-run`. Flags: [README → `lith-run`](../README.md#lith-run).
+Entry point for `lith-plate`. Flags: [README → `lith-plate`](../README.md#lith-plate).
 
 ### `aspect_mismatch`
 

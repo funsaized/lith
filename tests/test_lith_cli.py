@@ -85,7 +85,7 @@ def test_filename_includes_full_family_key_in_flag_mode():
         text=True,
     )
     env = json.loads(result.stdout)
-    # Stem only — the extension is lith-run's to choose from the image bytes.
+    # Stem only — the extension is lith-plate's to choose from the image bytes.
     assert env["output_path"].endswith("B_brutalist_32_langs"), env["output_path"]
     assert "_x_" not in env["output_path"]
 
@@ -128,7 +128,7 @@ def test_generate_and_run_agree_on_the_output_path():
         assert r.returncode == 0, r.stderr
         return next(l for l in r.stdout.splitlines() if l.startswith("[output]"))
 
-    assert out_line("lith.cli.generate") == out_line("lith.cli.run")
+    assert out_line("lith.cli.generate") == out_line("lith.cli.plate")
     assert ".png" not in out_line("lith.cli.generate")
 
 

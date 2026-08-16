@@ -23,7 +23,7 @@ def test_dry_mode_prints_plan():
         [
             sys.executable,
             "-m",
-            "lith.cli.run",
+            "lith.cli.plate",
             "--recipe",
             str(REPO / "recipes" / "live_test_recipe.json"),
         ],
@@ -82,7 +82,7 @@ def test_publishes_under_the_recipe_name(tmp_path):
     src.write_bytes(png(16, 16))
     out = tmp_path / "out"
     result = subprocess.run(
-        [sys.executable, "-m", "lith.cli.run",
+        [sys.executable, "-m", "lith.cli.plate",
          "--recipe", str(REPO / "recipes" / "live_test_recipe.json"),
          "--output-dir", str(out), "--image-file", str(src)],
         capture_output=True, text=True,
@@ -119,7 +119,7 @@ def test_strict_exits_nonzero_on_frame_drift(tmp_path):
     # The canary recipe asks 1:1; hand it a 9:16 portrait.
     src = tmp_path / "candidate.png"
     src.write_bytes(png(72, 128))
-    argv = [sys.executable, "-m", "lith.cli.run",
+    argv = [sys.executable, "-m", "lith.cli.plate",
             "--recipe", str(REPO / "recipes" / "live_test_recipe.json"),
             "--output-dir", str(tmp_path / "out"), "--image-file", str(src)]
 
@@ -137,7 +137,7 @@ def test_strict_stays_silent_when_the_frame_matches(tmp_path):
     src = tmp_path / "candidate.png"
     src.write_bytes(png(128, 128))
     result = subprocess.run(
-        [sys.executable, "-m", "lith.cli.run",
+        [sys.executable, "-m", "lith.cli.plate",
          "--recipe", str(REPO / "recipes" / "live_test_recipe.json"),
          "--output-dir", str(tmp_path / "out"), "--image-file", str(src),
          "--strict"],
@@ -147,7 +147,7 @@ def test_strict_stays_silent_when_the_frame_matches(tmp_path):
 
 
 def test_aspect_mismatch_flags_a_silent_substitution():
-    from lith.cli.run import aspect_mismatch
+    from lith.cli.plate import aspect_mismatch
 
     portrait = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8 + (720).to_bytes(4, "big") + (1280).to_bytes(4, "big")
     # 720x1280 is 9:16. Asking for 2:3 and getting this is the real defect.

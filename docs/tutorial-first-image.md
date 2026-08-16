@@ -72,7 +72,7 @@ A recipe holds every word that will appear in the image. Create
 Ask the driver what it intends to do with it:
 
 ```bash
-uv run lith-run --recipe recipes/tutorial_mesh.json
+uv run lith-plate --recipe recipes/tutorial_mesh.json
 ```
 
 ```
@@ -232,7 +232,7 @@ among candidates is our job.
 Hand the image to the driver:
 
 ```bash
-uv run lith-run \
+uv run lith-plate \
   --recipe recipes/tutorial_mesh.json \
   --image-file outputs/B_brutalist_32_langs_raw.jpg
 ```
@@ -255,7 +255,7 @@ the layout in our prompt was composed for a portrait frame.
 Add `--strict` and that warning becomes an exit code:
 
 ```bash
-uv run lith-run --recipe recipes/tutorial_mesh.json \
+uv run lith-plate --recipe recipes/tutorial_mesh.json \
   --image-file outputs/B_brutalist_32_langs_raw.jpg --strict
 echo $?          # 1
 ```
@@ -275,13 +275,13 @@ leaving us to guess which file is current.
 We turned an announcement into a finished graphic:
 
 1. A recipe held every word that would appear in the image.
-2. `lith-run` dry-ran the plan, choosing a frame and an arrangement from the
+2. `lith-plate` dry-ran the plan, choosing a frame and an arrangement from the
    shape of our content.
 3. One key changed the arrangement without touching anything else.
 4. `lith-call --check` and `--dry-run` showed the route and the exact request
    before anything was spent.
 5. `lith-call` generated candidates, reporting which model really served them.
-6. `lith-run` checked the delivered frame against the request and published
+6. `lith-plate` checked the delivered frame against the request and published
    under a derived name.
 
 ## Where to go next

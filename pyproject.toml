@@ -35,7 +35,7 @@ test = [
 
 [project.scripts]
 lith-generate = "lith.cli.generate:main"
-lith-run = "lith.cli.run:main"
+lith-plate = "lith.cli.plate:main"
 lith-call = "lith.cli.call:main"
 
 [project.urls]

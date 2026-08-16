@@ -149,7 +149,7 @@ def main() -> int:
         print(f"  {line}")
     print(f"[negative]    {rendered['negative_prompt']}")
     print(f"[plan]        {n} candidates via {model}, seed={args.seed}")
-    # A derived path is a stem: only lith-run sees the bytes that name it.
+    # A derived path is a stem: only lith-plate sees the bytes that name it.
     print(f"[output]      {out}" + ("" if args.out else ".<jpg|png|webp>"))
     print("Next: pass --call to emit the envelope for image_generate.")
     return 0

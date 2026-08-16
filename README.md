@@ -18,7 +18,7 @@ external binaries.
 **What lith is not.** It is not a vendor SDK or an autonomous publisher.
 `lith-call` performs generation, but it does not score or rank candidates, post
 to any platform, do video, or turn an existing post into a brief. Candidate
-selection and publication remain explicit handoffs; `lith-run` with no image
+selection and publication remain explicit handoffs; `lith-plate` with no image
 source prints its plan and exits 0.
 
 New here? Work through
@@ -40,7 +40,7 @@ and [how to install it](#install-the-hermes-skill).
 
 - [Install](#install)
 - [Install the Hermes skill](#install-the-hermes-skill)
-- [CLI reference](#cli-reference) — [`lith-generate`](#lith-generate) · [`lith-call`](#lith-call) · [`lith-run`](#lith-run)
+- [CLI reference](#cli-reference) — [`lith-generate`](#lith-generate) · [`lith-call`](#lith-call) · [`lith-plate`](#lith-plate)
 - [Python API](#python-api) — full detail in [the API reference](docs/reference-python-api.md)
 - [Recipe format](#recipe-format)
 - [Style families](#style-families)
@@ -84,7 +84,7 @@ uv sync --extra test
 ```
 
 `uv sync --extra test` creates `.venv/`, resolves `pyproject.toml`, and installs
-the project editable, which places `lith-generate`, `lith-call`, and `lith-run`
+the project editable, which places `lith-generate`, `lith-call`, and `lith-plate`
 in the venv.
 
 Verify:
@@ -149,7 +149,7 @@ Verify:
 test -f ~/.hermes/skills/lith/SKILL.md && echo "skill resolves"
 test ! -e ~/.hermes/skills/lith/lith  && echo "not nested"
 lith-generate --help >/dev/null && lith-call --help >/dev/null \
-  && lith-run --help >/dev/null && echo "cli ok"
+  && lith-plate --help >/dev/null && echo "cli ok"
 ```
 
 All three lines must print. The second is what catches the nesting trap above —
@@ -169,7 +169,7 @@ Worth knowing before you hand a session the keys — the file is short and worth
 reading in full:
 
 - Run `lith-call --check`, generate with the selected route, then finish through
-  `lith-run --strict`.
+  `lith-plate --strict`.
 - Use absolute paths for recipes and images.
 - Ask the user to pick when candidate selection is subjective.
 - **Never publish, post, or upload without separate authorization.**
@@ -279,13 +279,13 @@ uv run lith-call --recipe recipes/integration/01-stack-A.json --n 2 --emit-json
 Exit codes: `0` on success and `2` on an argparse error. Credential, request,
 transport, or provider failures terminate nonzero without writing candidates.
 
-### `lith-run`
+### `lith-plate`
 
 Validates a generated image and publishes it under the recipe's deterministic
 path. With no image source, it prints its plan and exits.
 
 ```
-lith-run --recipe PATH [--image-url URL | --image-file PATH] [options]
+lith-plate --recipe PATH [--image-url URL | --image-file PATH] [options]
 ```
 
 | Flag | Type | Default | Description |
@@ -303,7 +303,7 @@ Two modes:
 | No `--image-url` and no `--image-file` | Prints recipe, family, style, aspect, model, prompt, and output path; exits 0. Nothing is written. |
 | Image source | Writes the image to the recipe's output path, extension sniffed from the bytes; exits 0, or 1 under `--strict` if the frame drifted. |
 
-`lith-run` is the only step that compares the delivered frame against the one
+`lith-plate` is the only step that compares the delivered frame against the one
 the prompt was composed for, so it is the only place a silently substituted
 ratio becomes visible. Without `--strict` that comparison is a `[warn]` line on
 stdout and the command still exits 0 — fine when a person is reading the
@@ -323,7 +323,7 @@ extension follows the image, not the recipe: Grok returns JPEG, `gpt-image-1`
 returns PNG. Nothing is re-encoded.
 
 ```bash
-uv run lith-run \
+uv run lith-plate \
   --recipe recipes/live_test_recipe.json \
   --image-file outputs/B_brutalist_32_langs_raw.jpg
 ```
@@ -571,7 +571,7 @@ The 1.0 tier fails structurally rather than cosmetically: whole sections vanish,
 headings desync from the bodies beneath them, and panels duplicate. One row
 rendered `01 - THE MESH` above section 01's content and dropped section 02
 entirely; another printed `MagicONS` for `MagicDNS` and lost `04 - INGRESS`.
-The frames were exact and `lith-run --strict` exited 0 for every one of them —
+The frames were exact and `lith-plate --strict` exited 0 for every one of them —
 this is a copy-fidelity property, and no exit code detects it.
 
 Use `gpt-image-1` and `gpt-image-1-mini` for a title-and-subtitle poster, or not
@@ -579,11 +579,11 @@ at all. For anything with sections, prefer `gpt-image-2`, `gpt-image-1.5`, or
 the Grok line.
 
 When a clamp happens, `lith-generate` prints `warning: ...` on stderr and sets
-`aspect_note` in the envelope; `lith-run` prints it as a `[warn]` line.
+`aspect_note` in the envelope; `lith-plate` prints it as a `[warn]` line.
 `lith-call` prints the same warnings on stderr and carries `aspect_note`,
 `copy_note` and `limit_notes` in its `--emit-json` payload, including under
 `--check` and `--dry-run`.
-`lith-run` also compares the *published* image's real dimensions against the
+`lith-plate` also compares the *published* image's real dimensions against the
 request and warns when they differ by more than 2%, which catches a provider
 that ignored the field entirely.
 
@@ -631,9 +631,9 @@ The filename derives from `output_path(dir, family_key, headline, ext)`:
 |---|---|---|
 | Published image | `{family_key}_{slug(headline)}{ext}` | `outputs/B_brutalist_32_langs.jpg` |
 
-The directory is `--output-dir` for `lith-run`, defaulting to the recipe's
+The directory is `--output-dir` for `lith-plate`, defaulting to the recipe's
 sibling `outputs/`; `lith-generate` derives the same directory from `--recipe`,
-and falls back to `./outputs` in flag mode where there is no recipe to anchor to. `lith-run` sniffs `ext` from the image bytes —
+and falls back to `./outputs` in flag mode where there is no recipe to anchor to. `lith-plate` sniffs `ext` from the image bytes —
 `.jpg`, `.png`, or `.webp`. `lith-generate` has no bytes yet, so a path it
 derives is a bare stem and both commands print it the same way, as
 `{stem}.<jpg|png|webp>`. An explicit `--out` is recorded verbatim instead. The

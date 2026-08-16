@@ -33,12 +33,12 @@ somebody else; `lith-call` now makes it.
 That is not an unfinished pipeline; it is where the deterministic/probabilistic
 line was drawn. Everything on lith's side of the line is pure, testable, and
 reproducible: given the same recipe, `render_prompt` returns the same prompt —
-copy block and layout description included — forever, and `lith-run` publishes
+copy block and layout description included — forever, and `lith-plate` publishes
 the model's bytes unchanged under a name derived from that same recipe.
 Everything on the other side needs judgment, and lith declines to pretend
 otherwise.
 
-The concrete consequence: `lith-run` with no `--image-url` and no `--image-file`
+The concrete consequence: `lith-plate` with no `--image-url` and no `--image-file`
 prints its plan and exits 0. The dry run is the default, not a flag, because
 the step it can't do — deciding which candidate is the good one — comes at the
 end rather than the middle.
@@ -138,7 +138,7 @@ clamped `20:9` on `gpt-image-2` to a nearby listed value for no reason at all.
 letter forty lines of authored copy correctly, and the two properties are
 independent. `gpt-image-1` and `gpt-image-1-mini` deliver exact frames and then
 drop whole sections, desync headings from the bodies beneath them, and duplicate
-panels. `lith-run --strict` exits 0 on every one of those images, because no
+panels. `lith-plate --strict` exits 0 on every one of those images, because no
 exit code inspects copy.
 
 That is recorded in [README → Not every listed model can render a dense
@@ -237,7 +237,7 @@ looks clean while the envelope was discarded. That is the failure `lith-call`
 was built to end: it sends the fields itself and reports back what the provider
 said it did, so `model_reported` and `unsupported` replace an assumption with
 evidence. Hand the envelope to something else and you are back to trusting it,
-which is why `lith-run --strict` still checks the delivered frame independently
+which is why `lith-plate --strict` still checks the delivered frame independently
 of who produced it.
 
 **Credentials in `~/.hermes/auth.json` are not trusted by name.** Tier 4 of the

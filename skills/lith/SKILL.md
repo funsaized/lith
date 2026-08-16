@@ -87,7 +87,7 @@ below selects Hermes.
    publishes it under the recipe's deterministic output path:
 
    ```bash
-   lith-run --recipe /absolute/path/to/recipe.json \
+   lith-plate --recipe /absolute/path/to/recipe.json \
      --image-file /absolute/path/to/candidate.png --strict
    ```
 
@@ -98,7 +98,7 @@ below selects Hermes.
    `.webp`); the image is never re-encoded.
 
    Treat `lith-call` files as raw candidates, not published artifacts. Always
-   pass the selected candidate through `lith-run`: it is the step that checks
+   pass the selected candidate through `lith-plate`: it is the step that checks
    the delivered frame against the one the prompt was composed for, and a
    generation tool may quietly substitute a different one. Add `--strict` in
    any batch or sweep so a substituted frame exits 1 instead of printing a
@@ -195,7 +195,7 @@ labels it names appear as text.
 
 ## Verification
 
-- Confirm `lith-generate --help`, `lith-call --help`, and `lith-run --help`
+- Confirm `lith-generate --help`, `lith-call --help`, and `lith-plate --help`
   exit 0.
 - Before a sweep, confirm `lith-call --check --recipe PATH` reports the expected
   route and retain its reason with the run log.
@@ -204,8 +204,8 @@ labels it names appear as text.
   before the first paid request.
 - Confirm `python -c "from lith import render_prompt"` exits 0 in environments
   that install lith as a library dependency.
-- Confirm `lith-run` exited 0. A published file is not the success signal —
-  `lith-run` publishes the bytes even when it rejects the frame, so a file
+- Confirm `lith-plate` exited 0. A published file is not the success signal —
+  `lith-plate` publishes the bytes even when it rejects the frame, so a file
   exists either way.
 - Confirm every line of the brief's spec appears in the image, spelled
   correctly, and that no wording from the prompt's own instructions was

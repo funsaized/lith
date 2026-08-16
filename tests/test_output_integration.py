@@ -11,7 +11,7 @@ import pytest
 
 from lith.call import CallResult, Candidate
 from lith.cli import call as call_cli
-from lith.cli import run as run_cli
+from lith.cli import plate as plate_cli
 from lith.imagebytes import fetch_image, image_size, looks_like_image
 
 
@@ -65,8 +65,8 @@ def _recipe(tmp_path, *, aspect="2:3"):
 
 
 def _run(monkeypatch, *argv):
-    monkeypatch.setattr(sys, "argv", ["lith-run", *map(str, argv)])
-    return run_cli.main()
+    monkeypatch.setattr(sys, "argv", ["lith-plate", *map(str, argv)])
+    return plate_cli.main()
 
 
 class Response:

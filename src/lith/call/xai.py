@@ -7,7 +7,7 @@ import binascii
 from collections.abc import Mapping
 from typing import Any
 
-from lith.imagebytes import _image_ext, _image_size, fetch_image
+from lith.imagebytes import fetch_image, image_ext, image_size
 
 from . import CallResult, Candidate, ImageRequest
 from .creds import Credential, resolve_credential
@@ -24,27 +24,9 @@ _MIME_BY_EXTENSION = {
 
 
 def _storage_options(options: Mapping[str, Any]) -> dict[str, Any]:
-    allowed = {"filename", "expires_after", "public_url"}
-    unknown = sorted(set(options) - allowed)
-    if unknown:
-        raise InvalidRequest(
-            f"xAI storage_options contains unsupported fields: {', '.join(unknown)}"
-        )
     filename = options.get("filename")
     if not isinstance(filename, str) or not filename.strip():
         raise InvalidRequest("xAI storage_options.filename is required")
-    expires_after = options.get("expires_after")
-    if expires_after is not None and (
-        isinstance(expires_after, bool)
-        or not isinstance(expires_after, int)
-        or not 1 <= expires_after <= 2_592_000
-    ):
-        raise InvalidRequest(
-            "xAI storage_options.expires_after must be an integer from 1 through 2592000"
-        )
-    public_url = options.get("public_url")
-    if public_url is not None and not isinstance(public_url, bool):
-        raise InvalidRequest("xAI storage_options.public_url must be a boolean")
     return dict(options)
 
 
@@ -98,7 +80,7 @@ def _mime_type(item: dict[str, Any], data: bytes) -> str:
     reported = item.get("mime_type")
     if isinstance(reported, str) and reported:
         return reported
-    return _MIME_BY_EXTENSION.get(_image_ext(data), "application/octet-stream")
+    return _MIME_BY_EXTENSION.get(image_ext(data), "application/octet-stream")
 
 
 def _candidate_url(item: dict[str, Any]) -> str | None:
@@ -148,7 +130,7 @@ def _candidates(payload: dict[str, Any]) -> list[Candidate]:
                 index=index,
                 data=data,
                 mime=_mime_type(item, data),
-                dimensions=_image_size(data),
+                dimensions=image_size(data),
             )
         )
     return candidates

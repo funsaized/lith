@@ -15,11 +15,11 @@ JPEG_MAGIC = b"\xff\xd8\xff"
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 
-def _looks_like_image(body: bytes) -> bool:
-    return _image_ext(body) is not None
+def looks_like_image(body: bytes) -> bool:
+    return image_ext(body) is not None
 
 
-def _image_size(body: bytes) -> tuple[int, int] | None:
+def image_size(body: bytes) -> tuple[int, int] | None:
     """Read pixel dimensions from a PNG or JPEG header.
 
     ponytail: WebP is not parsed — it has three container variants and no
@@ -47,7 +47,7 @@ def _image_size(body: bytes) -> tuple[int, int] | None:
     return None
 
 
-def _image_ext(body: bytes) -> str | None:
+def image_ext(body: bytes) -> str | None:
     if body.startswith(JPEG_MAGIC):
         return ".jpg"
     if body.startswith(PNG_MAGIC):
@@ -89,7 +89,7 @@ def fetch_image(url: str) -> bytes:
             chunks.append(chunk)
         body = b"".join(chunks)
 
-    if not _looks_like_image(body):
+    if not looks_like_image(body):
         raise ValueError("downloaded bytes do not look like an image (magic mismatch)")
 
     return body

@@ -6,9 +6,11 @@ import sys
 import pytest
 
 from lith import load_recipe, render_prompt
-from lith.call import CallResult, Candidate
+from lith.call import CallResult, Candidate, ImageRequest
+from lith.call.capability import provider_for_model
 from lith.call.creds import Credential
 from lith.cli import call as call_cli
+from lith.cli.call import request_preview
 
 
 PROVIDER_VARIABLES = ("XAI_API_KEY", "OPENAI_API_KEY", "MINIMAX_API_KEY")
@@ -211,6 +213,30 @@ def test_check_prints_route_and_specific_reason_without_auth(
     output = capsys.readouterr().out
     assert "route=lith-call" in output
     assert "reason=Hermes image_generate cannot preserve resolved aspect '2:3'" in output
+
+
+def test_previous_grok_live_recipe_is_capable_and_routable(tmp_path):
+    path = pathlib.Path(__file__).resolve().parents[1] / "recipes" / "live_test_recipe.json"
+    recipe = load_recipe(path)
+    rendered = render_prompt(recipe)
+
+    assert recipe.model == "grok-imagine-image-quality"
+    assert provider_for_model(recipe.model) == "xai"
+    assert rendered["aspect_note"] is None
+    assert call_cli.routing_decision(
+        recipe.model,
+        rendered["aspect_ratio"],
+        home=tmp_path,
+        environ={"FAL_IMAGE_MODEL": recipe.model},
+    )["route"] == "image_generate"
+    assert request_preview(
+        ImageRequest(
+            prompt=rendered["prompt"],
+            model=recipe.model,
+            aspect=rendered["aspect_ratio"],
+            negative_prompt=rendered["negative_prompt"],
+        )
+    )["provider"] == "xai"
 
 
 def test_live_call_is_recipe_anchored_preserves_prompt_and_writes_magic_extensions(

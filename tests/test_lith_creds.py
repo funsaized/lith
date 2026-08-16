@@ -114,13 +114,13 @@ def test_shell_beats_repo_env(tmp_path):
 def test_api_key_pool_entry_is_fingerprint_only_and_skipped(tmp_path):
     root, recipe, elsewhere, home = _repo(tmp_path)
     _write_auth(home, {
-        "minimax": {
+        "minimax": [{
             "provider": "minimax",
             "auth_type": "api_key",
             "secret_fingerprint": "abc123",
             "source": "env:MINIMAX_API_KEY",
             "base_url": "https://api.minimax.io/v1",
-        }
+        }]
     })
     with pytest.raises(MissingCredential, match="MINIMAX_API_KEY"):
         resolve_credential(

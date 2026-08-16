@@ -448,17 +448,26 @@ def test_f_woodcut_demands_lining_figures():
     assert "old-style figures" in get_family(styles, "F")["negative_prompt"]
 
 
-def test_current_generation_models_are_known():
-    """An unlisted model skips the aspect guard entirely, so the current
-    defaults must be in the table."""
+def test_current_and_previous_generation_models_are_known():
+    """An unlisted model skips the aspect guard, so callable ids must be known."""
     from lith.aspect import MODEL_ASPECTS, nearest_supported
 
     assert "grok-imagine-image-2.0" in MODEL_ASPECTS
+    assert "grok-imagine-image-quality" in MODEL_ASPECTS
+    assert "grok-imagine-image" in MODEL_ASPECTS
     assert "gpt-image-2" in MODEL_ASPECTS
     assert "9:19.5" in MODEL_ASPECTS["grok-imagine-image-2.0"].ratio_enum
     # 16:9 was unreachable on gpt-image-1 and clamped to 3:2; gpt-image-2 has it.
     assert nearest_supported("gpt-image-1", "16:9") == "3:2"
     assert nearest_supported("gpt-image-2", "16:9") == "16:9"
+    assert nearest_supported("grok-imagine-image-quality", "4:5") == "3:4"
+
+
+def test_range_capability_clamps_only_to_its_boundaries():
+    from lith.aspect import nearest_supported
+
+    assert nearest_supported("gpt-image-2", "4:1") == "3:1"
+    assert nearest_supported("gpt-image-2", "1:4") == "1:3"
 
 
 def test_range_capability_preserves_admitted_ratio_without_a_note():
@@ -551,12 +560,15 @@ def test_model_capabilities_express_all_three_aspect_variants_and_limits():
 
 
 def test_capability_table_is_a_literal_transcription_of_provider_facts():
-    """Every model and limit below is transcribed from backlog section 2."""
+    """Every model and limit below is transcribed from the backlog facts."""
     from lith.aspect import MODEL_ASPECTS, ModelCapability, PixelSizeRange
 
     xai_ratios = frozenset({
         "1:1", "3:4", "4:3", "9:16", "16:9", "2:3", "3:2",
         "9:19.5", "19.5:9", "9:20", "20:9", "1:2", "2:1", "auto",
+    })
+    xai_1x_ratios = frozenset({
+        "1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "2:1", "1:2",
     })
     minimax_ratios = frozenset({
         "1:1", "16:9", "4:3", "3:2", "2:3", "3:4", "9:16", "21:9",
@@ -574,6 +586,12 @@ def test_capability_table_is_a_literal_transcription_of_provider_facts():
     expected = {
         "grok-imagine-image-2.0": ModelCapability(
             ratio_enum=xai_ratios, n_max=10
+        ),
+        "grok-imagine-image-quality": ModelCapability(
+            ratio_enum=xai_1x_ratios, n_max=10
+        ),
+        "grok-imagine-image": ModelCapability(
+            ratio_enum=xai_1x_ratios, n_max=10
         ),
         "gpt-image-2": ModelCapability(pixel_range=gpt_image_2_range, n_max=10),
         "gpt-image-2-2026-04-21": ModelCapability(

@@ -25,6 +25,7 @@ wherever a signature says `path`.
 - [`lith.styles`](#lithstyles)
 - [`lith.paths`](#lithpaths)
 - [`lith.expand`](#lithexpand)
+- [`lith.imagebytes`](#lithimagebytes)
 - [`lith.cli.generate`](#lithcligenerate)
 - [`lith.cli.call`](#lithclicall)
 - [`lith.cli.run`](#lithclirun)
@@ -370,11 +371,12 @@ the call dispatcher still rejects unknown ids.
 | Model | Aspect variant | Other limits |
 |---|---|---|
 | `grok-imagine-image-2.0` | 14-value `ratio_enum`, including `auto` | `n_max=10` |
+| `grok-imagine-image-quality`, `grok-imagine-image` | 9-value `ratio_enum` | `n_max=10` |
 | `gpt-image-2`, `gpt-image-2-2026-04-21` | `pixel_range`: edges ÷16 and ≤3840; ratio `1:3`–`3:1`; 655,360–8,294,400 pixels; `allows_auto=True` | `n_max=10` |
 | `gpt-image-1.5`, `gpt-image-1`, `gpt-image-1-mini` | `pixel_sizes=("1024x1024", "1536x1024", "1024x1536", "auto")` | `n_max=10` |
 | `image-01` | 8-value `ratio_enum` | `n_max=9`, `prompt_max_chars=1500` |
 
-The xAI enum is `1:1`, `3:4`, `4:3`, `9:16`, `16:9`, `2:3`, `3:2`,
+The xAI 2.0 enum is `1:1`, `3:4`, `4:3`, `9:16`, `16:9`, `2:3`, `3:2`,
 `9:19.5`, `19.5:9`, `9:20`, `20:9`, `1:2`, `2:1`, `auto`. The MiniMax enum
 is `1:1`, `16:9`, `4:3`, `3:2`, `2:3`, `3:4`, `9:16`, `21:9`. Adapters never
 send `auto`; lith resolves a concrete frame.
@@ -609,7 +611,7 @@ the selected adapter.
 
 | Provider | Models | Translation |
 |---|---|---|
-| xAI | `grok-imagine-image-2.0` | Sends concrete `aspect_ratio`, optional `resolution`, `n`, and explicit `response_format=b64_json`. |
+| xAI | `grok-imagine-image-2.0`, `grok-imagine-image-quality`, `grok-imagine-image` | Sends concrete `aspect_ratio`, optional `resolution`, `n`, and explicit `response_format=b64_json`. |
 | OpenAI | the five `gpt-image-*` ids in `MODEL_ASPECTS` | Sends [`pixel_size`](#pixel_size) as `size`, plus optional quality/background. GPT Image returns `b64_json` without a `response_format` request field. |
 | MiniMax | `image-01` | Sends an enum `aspect_ratio` or explicit `width`/`height`, optional seed, `prompt_optimizer=false`, and `response_format=base64`. |
 
@@ -646,11 +648,11 @@ generate(
 )
 ```
 
-`filename` is required; `expires_after` must be from 1 through 2,592,000
-seconds; and `public_url`, when present, must be a boolean. The adapter accepts
-the public URL under `file_output.public_url` or the candidate's ordinary
-`url`, fetches it under lith's download guards, and still returns image bytes in
-`Candidate.data`. The CLI does not expose this provider-specific option.
+The adapter checks only that the provider-required `filename` is present; xAI
+validates `expires_after`, `public_url`, and future provider options. The adapter
+accepts the public URL under `file_output.public_url` or the candidate's
+ordinary `url`, fetches it under lith's download guards, and still returns image
+bytes in `Candidate.data`. The CLI does not expose this provider-specific option.
 
 MiniMax enforces its 1500-character prompt cap before credential resolution or
 network access and raises `PromptTooLong`, an `InvalidRequest` subclass, naming
@@ -1074,9 +1076,10 @@ propagate.
 
 ---
 
-## `lith.cli.run`
+## `lith.imagebytes`
 
-Entry point for `lith-run`. Flags: [README → `lith-run`](../README.md#lith-run).
+Shared public helpers for recognizing, sizing, and downloading candidate image
+bytes. Provider adapters and both image-handling CLIs import these names.
 
 ### Module constants
 
@@ -1088,56 +1091,46 @@ Entry point for `lith-run`. Flags: [README → `lith-run`](../README.md#lith-run
 | `JPEG_MAGIC` | `b"\xff\xd8\xff"` |
 | `PNG_MAGIC` | `b"\x89PNG\r\n\x1a\n"` |
 
-### `_image_size`
+### `image_size`
 
 ```python
-_image_size(body: bytes) -> tuple[int, int] | None
+image_size(body: bytes) -> tuple[int, int] | None
 ```
 
-Private. Reads `(width, height)` from a PNG IHDR or a JPEG SOF marker.
+Reads `(width, height)` from a PNG IHDR or a JPEG SOF marker.
 Returns `None` for WebP — three container variants, and no model in the CLI's
 list returns it — and for any header it cannot walk. Header inspection only;
 no decode.
 
-### `aspect_mismatch`
+### `image_ext`
 
 ```python
-aspect_mismatch(body: bytes, requested: str, tolerance: float = 0.02) -> str | None
+image_ext(body: bytes) -> str | None
 ```
 
-Returns a description when the delivered frame differs from `requested` by
-more than `tolerance` (relative), else `None`. Returns `None` when the
-dimensions cannot be read, when `requested` is not `N:M` (`"auto"`), or when
-either term is zero — the check never raises and never blocks a publish.
-
-```python
->>> aspect_mismatch(jpeg_720x1280, "2:3")
-'requested 2:3 (0.667), received 720x1280 (0.562)'
-```
-
-A model may silently substitute a ratio it does not support, and the layout in
-the prompt was composed for the frame that was requested, so `cli.run` prints
-this as a `[warn]` line rather than letting the substitution pass unnoticed.
-
-### `_image_ext`
-
-```python
-_image_ext(body: bytes) -> str | None
-```
-
-Private. Returns `".jpg"` when `body` starts with `JPEG_MAGIC`, `".png"` for
+Returns `".jpg"` when `body` starts with `JPEG_MAGIC`, `".png"` for
 `PNG_MAGIC`, `".webp"` for `b"RIFF"` with `b"WEBP"` at offset 8, and `None`
 otherwise. Header inspection only — no decode, no dimension check, no
 validation of anything past byte 12.
 
-### `_looks_like_image`
+### `looks_like_image`
 
 ```python
-_looks_like_image(body: bytes) -> bool
+looks_like_image(body: bytes) -> bool
 ```
 
-Private. `_image_ext(body) is not None`. The two share one table so a format
+`image_ext(body) is not None`. The two share one table so a format
 the guard admits is always a format the publisher can name.
+
+### `fetch_image`
+
+```python
+fetch_image(url: str) -> bytes
+```
+
+Applies the same URL, redirect, size, and magic-byte guards as `download`, then
+returns the validated bytes without writing a file. Provider adapters use this
+for URL-form candidates.
 
 ### `download`
 
@@ -1155,7 +1148,7 @@ Fetches an image over HTTP(S) into `dst`, applying five guards in order:
    an `http(s)` URL redirecting to `file:` is refused.
 4. **Size ceiling.** Chunks are counted while streaming and the read aborts
    past `DOWNLOAD_MAX_BYTES`, before the body is assembled or written.
-5. **Magic bytes.** `_looks_like_image` must pass. An HTML error page fails
+5. **Magic bytes.** `looks_like_image` must pass. An HTML error page fails
    here rather than landing on disk as a `.jpg`.
 
 Sends `User-Agent: lith/1.0`. Creates `dst.parent` and writes only after all
@@ -1177,6 +1170,32 @@ Not covered: DNS rebinding, redirect-count limits, and private-address
 filtering — `urllib`'s defaults apply, and a redirect to an internal HTTP host
 is permitted.
 
+---
+
+## `lith.cli.run`
+
+Entry point for `lith-run`. Flags: [README → `lith-run`](../README.md#lith-run).
+
+### `aspect_mismatch`
+
+```python
+aspect_mismatch(body: bytes, requested: str, tolerance: float = 0.02) -> str | None
+```
+
+Returns a description when the delivered frame differs from `requested` by
+more than `tolerance` (relative), else `None`. Returns `None` when the
+dimensions cannot be read, when `requested` is not `N:M` (`"auto"`), or when
+either term is zero — the check never raises and never blocks a publish.
+
+```python
+>>> aspect_mismatch(jpeg_720x1280, "2:3")
+'requested 2:3 (0.667), received 720x1280 (0.562)'
+```
+
+A model may silently substitute a ratio it does not support, and the layout in
+the prompt was composed for the frame that was requested, so `cli.run` prints
+this as a `[warn]` line rather than letting the substitution pass unnoticed.
+
 ### `load_local`
 
 ```python
@@ -1184,7 +1203,7 @@ load_local(src: pathlib.Path, dst: pathlib.Path) -> pathlib.Path
 ```
 
 Copies a local image into the pipeline's staging path. Reads `src` whole, applies
-the same `_looks_like_image` check, creates `dst.parent`, and writes — unless
+the same `looks_like_image` check, creates `dst.parent`, and writes — unless
 `src` and `dst` resolve to the same file, in which case the write is skipped.
 Returns `dst`.
 
@@ -1204,7 +1223,7 @@ the output stem via `output_path(..., "")`. Branches two ways:
 | Branch | Effect |
 |---|---|
 | No image source | Prints recipe, family, style, aspect, model, `n`, prompt, and `{stem}.<jpg\|png\|webp>`. Writes nothing. |
-| Image source | Stages the bytes at `{stem}.part`, warns if [`aspect_mismatch`](#aspect_mismatch) finds drift, then `Path.replace`s that onto `{stem}` plus the extension `_image_ext` reads from the first 12 bytes. |
+| Image source | Stages the bytes at `{stem}.part`, warns if [`aspect_mismatch`](#aspect_mismatch) finds drift, then `Path.replace`s that onto `{stem}` plus the extension `image_ext` reads from the first 12 bytes. |
 
 `--strict` promotes that drift warning to exit code 1. The publish still
 happens first: the delivered bytes are what you need in order to see how the

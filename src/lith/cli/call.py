@@ -17,7 +17,7 @@ from lith.call import CallResult, ImageRequest, generate
 from lith.call.capability import provider_for_model
 from lith.call.creds import MissingCredential, PROVIDERS, resolve_credential
 from lith.call.http import REDACTED
-from lith.imagebytes import _image_ext
+from lith.imagebytes import image_ext
 from lith.paths import default_output_dir
 
 
@@ -245,7 +245,7 @@ def _write_candidates(
         if candidate.index in indexes:
             raise ValueError(f"duplicate candidate index {candidate.index}")
         indexes.add(candidate.index)
-        extension = _image_ext(candidate.data)
+        extension = image_ext(candidate.data)
         if extension is None:
             raise ValueError(
                 f"candidate {candidate.index} is not a recognized image format"

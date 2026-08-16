@@ -1,8 +1,8 @@
 {
   "name": "integration-20-aspect-family",
-  "description": "Integration testbed row: family A, model grok-imagine-image-2.0.",
+  "description": "Integration testbed row: family A, model grok-imagine-image.",
   "style": "A",
-  "model": "grok-imagine-image-2.0",
+  "model": "grok-imagine-image",
   "n": 2,
   "brief": {
     "topic": "private tailscale mesh across three machines",

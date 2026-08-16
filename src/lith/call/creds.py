@@ -140,37 +140,17 @@ def _from_values(
 
 
 def _pool_entries(pool: Any) -> list[tuple[str, Mapping[str, Any]]]:
-    if isinstance(pool, Mapping):
-        entries = []
-        for name, value in pool.items():
-            if isinstance(value, Mapping):
-                entries.append((str(name), value))
-                continue
-            if isinstance(value, list):
-                for entry in value:
-                    if not isinstance(entry, Mapping):
-                        continue
-                    entries.append((str(name), entry))
+    entries = []
+    if not isinstance(pool, Mapping):
         return entries
-    if isinstance(pool, list):
-        entries = []
-        for index, entry in enumerate(pool):
-            if not isinstance(entry, Mapping):
-                continue
-            name = entry.get("name") or entry.get("id") or str(index)
-            entries.append((str(name), entry))
-        return entries
-    return []
+    for name, values in pool.items():
+        if not isinstance(values, list):
+            continue
+        entries.extend((str(name), entry) for entry in values if isinstance(entry, Mapping))
+    return entries
 
 
-def _entry_matches_provider(name: str, entry: Mapping[str, Any], provider: str) -> bool:
-    declared = entry.get("provider")
-    if isinstance(declared, str):
-        lowered_declared = declared.lower()
-        return (
-            lowered_declared == provider
-            or lowered_declared.startswith(f"{provider}-")
-        )
+def _entry_matches_provider(name: str, provider: str) -> bool:
     lowered = name.lower()
     return lowered == provider or lowered.startswith(f"{provider}-")
 
@@ -195,7 +175,7 @@ def _from_auth_json(provider: str, path: Path) -> Credential | None:
 
     required_base = PROVIDERS[provider].base_url_prefix
     for name, entry in _pool_entries(document.get("credential_pool")):
-        if not _entry_matches_provider(name, entry, provider):
+        if not _entry_matches_provider(name, provider):
             continue
         # api_key entries contain only fingerprints and provenance, never a key.
         if entry.get("auth_type") != "oauth":

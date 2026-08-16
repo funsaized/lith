@@ -99,27 +99,6 @@ def _error_message(payload: dict[str, Any] | None, fallback: str) -> str:
     return fallback
 
 
-def _is_content_rejection(payload: dict[str, Any] | None) -> bool:
-    if not payload:
-        return False
-    error = payload.get("error")
-    values: list[Any]
-    if isinstance(error, dict):
-        values = [error.get("message"), error.get("type"), error.get("code")]
-    else:
-        values = [error, payload.get("message"), payload.get("detail")]
-    text = " ".join(str(value).lower() for value in values if value is not None)
-    markers = (
-        "content_policy",
-        "content policy",
-        "content moderation",
-        "moderation_blocked",
-        "safety system",
-        "sensitive content",
-    )
-    return any(marker in text for marker in markers)
-
-
 def _raise_http_error(
     status: int,
     payload: dict[str, Any] | None,
@@ -129,9 +108,7 @@ def _raise_http_error(
 ) -> None:
     message = _redact_text(_error_message(payload, reason), secrets)
     rendered = f"{summary} failed with HTTP {status}: {message}"
-    if _is_content_rejection(payload):
-        error_type: type[ProviderError] = ContentRejected
-    elif status in (401, 403):
+    if status in (401, 403):
         error_type = AuthError
     elif status == 429:
         error_type = RateLimited

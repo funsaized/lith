@@ -143,14 +143,9 @@ def test_public_storage_uses_url_response_and_fetches_candidate_bytes():
     [
         ({}, "filename is required"),
         ({"filename": ""}, "filename is required"),
-        ({"filename": "x.png", "expires_after": True}, "expires_after"),
-        ({"filename": "x.png", "expires_after": 0}, "expires_after"),
-        ({"filename": "x.png", "expires_after": 2_592_001}, "expires_after"),
-        ({"filename": "x.png", "public_url": "yes"}, "public_url"),
-        ({"filename": "x.png", "surprise": 1}, "unsupported fields: surprise"),
     ],
 )
-def test_storage_options_are_validated_before_auth(storage, message):
+def test_required_storage_filename_is_validated_before_auth(storage, message):
     request = ImageRequest(
         prompt="draw", model="grok-imagine-image-2.0", aspect="1:1"
     )
@@ -158,6 +153,14 @@ def test_storage_options_are_validated_before_auth(storage, message):
         with pytest.raises(InvalidRequest, match=message):
             generate(request, storage_options=storage)
     resolve.assert_not_called()
+
+
+def test_other_storage_options_are_passed_to_xai_for_validation():
+    request = ImageRequest(
+        prompt="draw", model="grok-imagine-image-2.0", aspect="1:1"
+    )
+    storage = {"filename": "x.png", "provider_option": "future-value"}
+    assert build_request(request, storage_options=storage)["storage_options"] == storage
 
 
 def test_unsupported_fields_are_reported_without_touching_prompt():

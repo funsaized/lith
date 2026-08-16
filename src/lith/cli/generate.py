@@ -64,6 +64,8 @@ def main() -> int:
         default="grok-imagine-image-2.0",
         choices=[
             "grok-imagine-image-2.0",
+            "grok-imagine-image-quality",
+            "grok-imagine-image",
             "gpt-image-2",
             "gpt-image-2-2026-04-21",
             "gpt-image-1.5",

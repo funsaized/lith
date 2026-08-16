@@ -12,7 +12,7 @@ import pathlib
 import sys
 
 from lith import load_recipe, output_path, render_prompt
-from lith.imagebytes import _image_ext, _image_size, _looks_like_image, download
+from lith.imagebytes import download, image_ext, image_size, looks_like_image
 from lith.paths import default_output_dir
 from lith.styles import get_family, load_styles
 
@@ -25,7 +25,7 @@ def aspect_mismatch(body: bytes, requested: str, tolerance: float = 0.02) -> str
     prompt describes was composed for the requested frame, so the substitution
     has to be visible rather than discovered later in the image.
     """
-    size = _image_size(body)
+    size = image_size(body)
     if size is None or ":" not in requested:
         return None
     try:
@@ -48,7 +48,7 @@ def load_local(src: pathlib.Path, dst: pathlib.Path) -> pathlib.Path:
     if not src.is_file():
         raise FileNotFoundError(f"input not found: {src}")
     body = src.read_bytes()
-    if not _looks_like_image(body):
+    if not looks_like_image(body):
         raise ValueError(f"local file is not a recognized image format: {src}")
     dst.parent.mkdir(parents=True, exist_ok=True)
     if src.resolve() != dst.resolve():
@@ -120,7 +120,7 @@ def main() -> int:
     drift = aspect_mismatch(body, rendered["aspect_ratio"])
     if drift:
         print(f"[warn]        aspect: {drift}", flush=True)
-    completed = stem.with_suffix(_image_ext(body[:12]))
+    completed = stem.with_suffix(image_ext(body[:12]))
     # Output paths key on family and headline only, so a sweep whose recipes
     # share a headline silently collapses onto one file per family.
     if completed.exists():

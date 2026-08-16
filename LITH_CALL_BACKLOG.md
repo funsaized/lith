@@ -551,6 +551,9 @@ Done: all three variants representable; existing suite green.
 Needs: `P0-1` · Env: `OFFLINE` · Files: `src/lith/aspect.py`
 grok 2.0 gains `9:19.5`, `19.5:9`, `auto`. Add `gpt-image-1.5`,
 `gpt-image-1-mini` (gpt-image-1's three sizes), `gpt-image-2-2026-04-21`.
+Retain the callable previous-generation `grok-imagine-image-quality` and
+`grok-imagine-image` entries at their existing 9-value ratio enum; removing
+them makes the pinned live recipe and Hermes' configured model unroutable.
 Replace `minimax-image` with `image-01` at its 8-value enum plus
 `prompt_max_chars=1500`, `n_max=9`. **Skip `image-01-live`** — i2i only, and i2i
 is out of scope (§6). `gpt-image-1` is already correct; do not change it.
@@ -575,7 +578,7 @@ the ratio is unreachable.
 **`P0-5` — Extract `imagebytes.py`**
 Needs: — · Env: `OFFLINE` · Files: `src/lith/imagebytes.py` (new),
 `src/lith/cli/run.py`, `tests/test_lith_cli_run.py`
-Move `download`, `_looks_like_image`, `_image_ext`, `_image_size`. Leave
+Move `download`, `looks_like_image`, `image_ext`, `image_size`. Leave
 `aspect_mismatch` in `cli/run.py` — it is a CLI policy, not a byte utility.
 Pure move; no behaviour change.
 Done: `cli/run.py` imports from `lith.imagebytes`; suite green with no test

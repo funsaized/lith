@@ -7,7 +7,7 @@ import binascii
 from typing import Any
 
 from lith.aspect import pixel_size
-from lith.imagebytes import _image_ext, _image_size
+from lith.imagebytes import image_ext, image_size
 
 from . import CallResult, Candidate, ImageRequest
 from .capability import MODEL_PROVIDERS
@@ -141,14 +141,14 @@ def _candidates(payload: dict[str, Any], output_format: str) -> list[Candidate]:
             raise ProviderError(
                 f"OpenAI candidate {index} has invalid b64_json", payload=payload
             ) from exc
-        extension = _image_ext(data)
+        extension = image_ext(data)
         mime = _MIME_BY_EXTENSION.get(extension, _MIME_BY_FORMAT[output_format])
         candidates.append(
             Candidate(
                 index=index,
                 data=data,
                 mime=mime,
-                dimensions=_image_size(data),
+                dimensions=image_size(data),
             )
         )
     return candidates

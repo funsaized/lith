@@ -7,7 +7,7 @@ import binascii
 from typing import Any
 
 from lith.aspect import ratio
-from lith.imagebytes import _image_ext, _image_size
+from lith.imagebytes import image_ext, image_size
 
 from . import CallResult, Candidate, ImageRequest
 from .creds import Credential, resolve_credential
@@ -110,7 +110,7 @@ def unsupported_fields(request: ImageRequest) -> dict[str, str]:
 
 
 def _mime_type(data: bytes) -> str:
-    return _MIME_BY_EXTENSION.get(_image_ext(data), "application/octet-stream")
+    return _MIME_BY_EXTENSION.get(image_ext(data), "application/octet-stream")
 
 
 def _candidates(payload: dict[str, Any]) -> list[Candidate]:
@@ -140,7 +140,7 @@ def _candidates(payload: dict[str, Any]) -> list[Candidate]:
                 index=index,
                 data=image,
                 mime=_mime_type(image),
-                dimensions=_image_size(image),
+                dimensions=image_size(image),
             )
         )
     return candidates

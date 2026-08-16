@@ -532,6 +532,7 @@ so lith substitutes first and says so.
 | Model | Capability variant | Limit |
 |---|---|---|
 | `grok-imagine-image-2.0` (**default**) | ratio enum | `1:1` `3:4` `4:3` `9:16` `16:9` `2:3` `3:2` `9:19.5` `19.5:9` `9:20` `20:9` `1:2` `2:1` (`auto` is recorded but never sent) · `n ≤ 10` |
+| `grok-imagine-image-quality`, `grok-imagine-image` | ratio enum | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `2:1` `1:2` · `n ≤ 10` |
 | `gpt-image-2`, `gpt-image-2-2026-04-21` | constrained pixel range | edges divisible by 16 and ≤3840, ratio `1:3`–`3:1`, 655,360–8,294,400 pixels · `n ≤ 10` |
 | `gpt-image-1.5`, `gpt-image-1`, `gpt-image-1-mini` | fixed pixel sizes | `1024x1024` `1536x1024` `1024x1536` (`auto` is recorded but never sent) · `n ≤ 10` |
 | `image-01` | ratio enum | `1:1` `16:9` `4:3` `3:2` `2:3` `3:4` `9:16` `21:9` · `n ≤ 9` · prompt ≤1500 characters |

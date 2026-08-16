@@ -85,6 +85,9 @@ _XAI_RATIOS = frozenset(
 _MINIMAX_RATIOS = frozenset(
     {"1:1", "16:9", "4:3", "3:2", "2:3", "3:4", "9:16", "21:9"}
 )
+_XAI_1X_RATIOS = frozenset(
+    {"1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "2:1", "1:2"}
+)
 _OPENAI_1X_SIZES = ("1024x1024", "1536x1024", "1024x1536", "auto")
 _GPT_IMAGE_2_RANGE = PixelSizeRange(
     edge_multiple=16,
@@ -95,15 +98,12 @@ _GPT_IMAGE_2_RANGE = PixelSizeRange(
     max_edge=3840,
     allows_auto=True,
 )
-_GPT_IMAGE_2_RESOLVER_SAMPLES = frozenset(
-    {
-        "1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16", "2:1", "1:2",
-        "5:4", "4:5", "3:1", "1:3", "21:9", "9:21",
-    }
-)
-
 MODEL_ASPECTS: dict[str, ModelCapability] = {
     "grok-imagine-image-2.0": ModelCapability(ratio_enum=_XAI_RATIOS, n_max=10),
+    "grok-imagine-image-quality": ModelCapability(
+        ratio_enum=_XAI_1X_RATIOS, n_max=10
+    ),
+    "grok-imagine-image": ModelCapability(ratio_enum=_XAI_1X_RATIOS, n_max=10),
     "gpt-image-2": ModelCapability(pixel_range=_GPT_IMAGE_2_RANGE, n_max=10),
     "gpt-image-2-2026-04-21": ModelCapability(
         pixel_range=_GPT_IMAGE_2_RANGE, n_max=10
@@ -153,14 +153,14 @@ def _pixel_size_ratios(pixel_sizes: tuple[str, ...]) -> frozenset[str]:
     return frozenset(ratios)
 
 
-def _resolver_ratios(model: str, capability: ModelCapability) -> frozenset[str]:
+def _resolver_ratios(capability: ModelCapability) -> frozenset[str]:
     """Finite choices used when an enum or range boundary needs clamping."""
     if capability.ratio_enum is not None:
         return capability.ratio_enum - {"auto"}
     if capability.pixel_sizes is not None:
         return _pixel_size_ratios(capability.pixel_sizes)
     if capability.pixel_range is not None:
-        return _GPT_IMAGE_2_RESOLVER_SAMPLES
+        return frozenset({"1:3", "3:1"})
     return frozenset()
 
 
@@ -171,7 +171,7 @@ def unsupported_aspect(model: str, aspect: str) -> str | None:
         return None
     if capability.pixel_range is not None and aspect in capability:
         return None
-    supported = _resolver_ratios(model, capability)
+    supported = _resolver_ratios(capability)
     if aspect in supported:
         return None
     return (
@@ -191,7 +191,7 @@ def nearest_supported(model: str | None, aspect: str) -> str:
         return aspect
     if capability.pixel_range is not None and aspect in capability:
         return aspect
-    supported = _resolver_ratios(model or "", capability)
+    supported = _resolver_ratios(capability)
     if aspect in supported:
         return aspect
     want = ratio(aspect)

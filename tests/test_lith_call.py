@@ -53,11 +53,13 @@ def test_candidate_and_call_result_preserve_provider_evidence():
     assert result.raw is raw
 
 
-def test_all_seven_capability_models_map_to_a_provider():
+def test_all_capability_models_map_to_a_provider():
     from lith.aspect import MODEL_ASPECTS
 
     assert MODEL_PROVIDERS == {
         "grok-imagine-image-2.0": "xai",
+        "grok-imagine-image-quality": "xai",
+        "grok-imagine-image": "xai",
         "gpt-image-2": "openai",
         "gpt-image-2-2026-04-21": "openai",
         "gpt-image-1.5": "openai",
@@ -74,6 +76,8 @@ def test_all_seven_capability_models_map_to_a_provider():
     ("model", "provider"),
     [
         ("grok-imagine-image-2.0", "xai"),
+        ("grok-imagine-image-quality", "xai"),
+        ("grok-imagine-image", "xai"),
         ("gpt-image-2", "openai"),
         ("image-01", "minimax"),
     ],

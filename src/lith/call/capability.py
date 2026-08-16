@@ -5,6 +5,8 @@ from __future__ import annotations
 
 MODEL_PROVIDERS: dict[str, str] = {
     "grok-imagine-image-2.0": "xai",
+    "grok-imagine-image-quality": "xai",
+    "grok-imagine-image": "xai",
     "gpt-image-2": "openai",
     "gpt-image-2-2026-04-21": "openai",
     "gpt-image-1.5": "openai",

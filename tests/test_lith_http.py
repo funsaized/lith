@@ -99,12 +99,12 @@ def test_retryable_http_failure_is_raised_after_one_retry(status, expected):
         (
             400,
             {"error": {"message": "blocked", "code": "content_policy_violation"}},
-            ContentRejected,
+            InvalidRequest,
         ),
         (
             400,
             {"error": {"message": "request rejected by content moderation"}},
-            ContentRejected,
+            InvalidRequest,
         ),
     ],
 )

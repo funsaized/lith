@@ -711,6 +711,19 @@ at `2k` and compare copy fidelity against the `1k` baseline. Settles whether
 panel area is the copy-fidelity variable — the one finding that survived both
 sweeps. Needs one flag.
 
+Measured 2026-08-16 with `grok-imagine-image-2.0`, one candidate per request:
+
+| row | 1k pixels | 2k pixels | copy-fidelity result |
+| --- | --- | --- | --- |
+| 03 | 1248×832 | 2496×1664 | Authored copy was exact at both sizes; no material fidelity change. |
+| 07 | 1248×832 | 2496×1664 | 1k leaked style instructions into the title and misspelled the subtitle; 2k rendered the authored title and subtitle exactly. |
+| 13 | 832×1248 | 1664×2496 | Authored copy was exact at both sizes; no material fidelity change. |
+| 18 | 832×1248 | 1664×2496 | Authored copy was exact at both sizes; no material fidelity change. |
+
+Result: 2k materially improved the one failing dense row (07), while the other
+three rows were already copy-faithful at 1k. Panel area can fix a fidelity
+failure, but this sample does not support it as the sole or universal variable.
+
 **`P3-2` — Exact-ratio rendering**
 Needs: `P2-3` · Env: `KEY:openai`
 gpt-image-2 is the only provider that renders `20:9` as `20:9` rather than the

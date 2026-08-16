@@ -229,20 +229,22 @@ time.
 |---|---|---|
 | xAI | Tier 4 — `auth.json` → `xai-oauth`, `base_url: https://api.x.ai/v1` | **yes** |
 | MiniMax | Tier 3 — `~/.hermes/.env` → `MINIMAX_API_KEY` | yes, but see §3.1 |
-| OpenAI | nothing valid at any tier | **no** |
+| OpenAI | Tier 3 — `~/.hermes/.env` → `OPENAI_API_KEY` | credential present; live validity pending `P2-3` |
 
 The xAI credential is a SuperGrok device-code OAuth token, not an API key, and
 it is pointed at the developer API base URL — which is why Hermes generates
 images with `use_gateway: false` and no `XAI_API_KEY` anywhere. `P1-6` is
 therefore unblocked.
 
-OpenAI is not. The only OpenAI-ish credential is `openai-codex`, whose
-`base_url` is `https://chatgpt.com/backend-api/codex` — the Codex backend, not
-`api.openai.com`. Tier 4's base-URL check rejects it by design. `P2-3` and the
-OpenAI half of Phase 3 need a real `OPENAI_API_KEY`.
+OpenAI changed after the original snapshot. A measured `lith-call --auth`
+re-check on 2026-08-16 resolves a nonempty `OPENAI_API_KEY` from tier 3; `P2-3`
+will establish its live validity. The `openai-codex` entry still has
+`base_url: https://chatgpt.com/backend-api/codex` — the Codex backend, not
+`api.openai.com` — and tier 4's base-URL check still rejects it by design. The
+tier-3 API key, not that OAuth entry, is what removes the credential blocker.
 
-Note the irony in what *is* available: the only conventional API key on this
-machine belongs to the one provider that cannot render a lith poster (§3.1).
+The MiniMax conventional API key remains available, but cannot render a lith
+poster without the out-of-scope compact templates (§3.1).
 
 ---
 

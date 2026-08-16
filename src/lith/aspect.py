@@ -258,6 +258,27 @@ def pixel_size(model: str, aspect: str) -> str:
     return f"{width}x{height}"
 
 
+def request_limit_notes(model: str, n: int, prompt: str) -> list[str]:
+    """Describe model request limits exceeded by a rendered envelope."""
+    capability = supported_by(model)
+    if capability is None:
+        return []
+    notes = []
+    if n > capability.n_max:
+        notes.append(
+            f"{model} requested n={n}; maximum is {capability.n_max}"
+        )
+    if (
+        capability.prompt_max_chars is not None
+        and len(prompt) > capability.prompt_max_chars
+    ):
+        notes.append(
+            f"{model} prompt is {len(prompt)} characters; maximum is "
+            f"{capability.prompt_max_chars} (backlog §3.1)"
+        )
+    return notes
+
+
 def content_aspect(brief: dict[str, Any], style: dict[str, Any]) -> str | None:
     """The ratio the brief's own content shape calls for, if it calls for one.
 

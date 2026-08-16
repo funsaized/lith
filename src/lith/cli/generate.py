@@ -14,6 +14,7 @@ import pathlib
 import sys
 
 from lith import load_recipe, output_path, render_prompt
+from lith.aspect import request_limit_notes
 from lith.paths import default_output_dir
 from lith.recipe import FAMILY_KEYS
 from lith.styles import get_family, load_styles
@@ -110,7 +111,8 @@ def main() -> int:
         )
 
     rendered = render_prompt(style, brief, model=model)
-    for note in (rendered["aspect_note"], rendered["copy_note"]):
+    limit_notes = request_limit_notes(model, n, rendered["prompt"])
+    for note in (rendered["aspect_note"], rendered["copy_note"], *limit_notes):
         if note:
             print(f"warning: {note}", file=sys.stderr, flush=True)
 
@@ -128,6 +130,7 @@ def main() -> int:
             # have to read stderr to learn the ratio was substituted.
             "aspect_note": rendered["aspect_note"],
             "copy_note": rendered["copy_note"],
+            "limit_notes": limit_notes,
         }
         if args.emit_json:
             print(json.dumps(envelope, indent=2))

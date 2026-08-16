@@ -148,7 +148,7 @@ def test_generate_cli_emits_an_envelope(path, monkeypatch, capsys):
     envelope = json.loads(capsys.readouterr().out)
     assert set(envelope) == {
         "prompt", "negative_prompt", "aspect_ratio", "model", "n", "seed",
-        "output_path", "style", "aspect_note", "copy_note",
+        "output_path", "style", "aspect_note", "copy_note", "limit_notes",
     }
     assert envelope["model"] == json.loads(path.read_text())["model"]
     assert envelope["n"] == 2
@@ -192,6 +192,46 @@ def test_generate_cli_warns_when_a_model_clamps(monkeypatch, capsys):
     captured = capsys.readouterr()
     assert "warning:" in captured.err
     assert json.loads(captured.out)["aspect_note"]
+
+
+def test_generate_cli_warns_when_image_01_prompt_exceeds_cap(
+    monkeypatch, capsys
+):
+    path = next(
+        p for p in RECIPES if json.loads(p.read_text())["model"] == "image-01"
+    )
+    _main(
+        "lith.cli.generate",
+        ["--recipe", str(path), "--call", "--emit-json"],
+        monkeypatch,
+    )
+    captured = capsys.readouterr()
+    envelope = json.loads(captured.out)
+    length = len(envelope["prompt"])
+    expected = (
+        f"image-01 prompt is {length} characters; maximum is 1500 "
+        "(backlog §3.1)"
+    )
+    assert length > 1500
+    assert expected in envelope["limit_notes"]
+    assert f"warning: {expected}" in captured.err
+
+
+def test_generate_cli_warns_when_n_exceeds_model_limit(monkeypatch, capsys):
+    _main(
+        "lith.cli.generate",
+        [
+            "--topic", "t", "--style", "B", "--headline", "SHIP",
+            "--model", "grok-imagine-image-2.0", "--n", "12",
+            "--call", "--emit-json",
+        ],
+        monkeypatch,
+    )
+    captured = capsys.readouterr()
+    envelope = json.loads(captured.out)
+    note = "grok-imagine-image-2.0 requested n=12; maximum is 10"
+    assert envelope["limit_notes"] == [note]
+    assert f"warning: {note}" in captured.err
 
 
 # --- CLI surfaces a recipe cannot reach ------------------------------------

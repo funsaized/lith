@@ -11,7 +11,7 @@ poster spec — headline, subtitle, sections, diagram, footer — serialized int
 the prompt as a literal copy block the model is ordered to reproduce character
 for character, so no shipped word was invented by the model. Fifteen named
 layouts and a resolution chain that picks one from the shape of your content
-and the shape of the frame. Three console scripts, six root-level convenience
+and the shape of the frame. Three console scripts, eight root-level convenience
 functions, and a typed `lith.call` API. Standard library only, no vendor SDKs or
 external binaries.
 
@@ -313,8 +313,8 @@ you need to diagnose the substitution.
 
 `--image-url` fetches under four guards: HTTP(S) schemes only, re-checked after
 redirects; 30-second timeout; 25 MB ceiling enforced while streaming; and a
-magic-byte check for JPEG, PNG, or WebP before any write. `--image-file` skips
-the network guards, keeps the magic-byte check, and no-ops the copy if source
+structural validation for JPEG, PNG, or WebP before any write. `--image-file` skips
+the network guards, keeps structural validation, and no-ops the copy if source
 and destination resolve to the same path.
 
 Bytes are staged as `<stem>.part` and renamed once the format is known, because
@@ -335,7 +335,7 @@ non-image body raises and terminates with a traceback.
 
 ## Python API
 
-`from lith import ...` exposes six names. Full signatures, return shapes,
+`from lith import ...` exposes eight names. Full signatures, return shapes,
 exception tables, and internals for every module —
 **[Python API and implementation reference](docs/reference-python-api.md)**.
 
@@ -343,6 +343,8 @@ exception tables, and internals for every module —
 |---|---|---|
 | `render_prompt` | `(style, brief=None) -> dict[str, str]` | Substitute a brief into a family template. Returns `prompt`, `negative_prompt`, `aspect_ratio`, `style`. |
 | `load_recipe` | `(path) -> Recipe` | Read and validate a recipe file. |
+| `recipe_from_brief` | `(brief, *, style, model, n, ...) -> Recipe` | Validate generated data and construct a recipe. |
+| `validate_brief` | `(brief) -> dict` | Validate brief shape and authored field types. |
 | `expand_brief` | `(topic, llm_cmd, ...) -> dict` | Expand a topic into a brief using an LLM command you supply. |
 | `parse_brief_response` | `(text) -> dict` | First decodable JSON object in an LLM reply. |
 | `output_path` | `(out_dir, family_key, headline, ext) -> Path` | Derive an artifact path. |
@@ -394,8 +396,8 @@ A recipe is a JSON object. See
 | `brief` | object | yes | — | Substitution values; see below. |
 | `name` | string | no | file stem | Recipe identifier. |
 | `description` | string | no | `null` | Free text; not used at runtime. |
-| `model` | string | no | `grok-imagine-image-2.0` | Recorded in the envelope. Not validated against the CLI's choices, so any model id passes through. |
-| `n` | int | no | `4` | Candidate count recorded in the envelope. |
+| `model` | string | no | `grok-imagine-image-2.0` | Must be a model in the capability table below. |
+| `n` | int | no | `4` | Candidate count; must be within the selected model's provider limit. |
 
 `brief` keys:
 
@@ -420,19 +422,28 @@ All seven families carry `{spec}` and `{layout}`, so spec keys reach every one
 of them. A brief with no `sections` degrades to a title-only spec, which is
 what every pre-spec recipe produces.
 
+Recipes are validated before rendering: style and model must be known, `n`
+must fit the model limit, authored fields must be non-empty strings, sections
+must contain headings and string lists, layout keys must be known, and aspect
+must be `auto` or a positive `W:H` ratio. `validate_brief` and
+`recipe_from_brief` expose the same boundary for data returned by
+`expand_brief`.
+
 ```json
 {
   "name": "live_test_recipe",
   "style": "B",
   "brief": {
-    "topic": "Hermes Agent now supports 32 new languages",
-    "headline": "32 LANGS",
-    "icon": "globe",
-    "aspect": "16:9",
-    "volume": "1"
+    "topic": "Dill Pickles and all things great about them",
+    "headline": "DILL PICKLES",
+    "icon": "lightning",
+    "aspect": "1:1",
+    "sections": [
+      {"heading": "01 - COLD CRUNCH", "lines": ["Firm cucumbers snap with every bite"]}
+    ]
   },
   "model": "grok-imagine-image-2.0",
-  "n": 4
+  "n": 1
 }
 ```
 
@@ -628,9 +639,9 @@ derives is a bare stem and both commands print it the same way, as
 `{stem}.<jpg|png|webp>`. An explicit `--out` is recorded verbatim instead. The
 file is overwritten without prompting when a recipe is re-run.
 
-`outputs/B_brutalist_32_langs_raw.jpg` is a committed reference artifact — real
-Grok output for `recipes/live_test_recipe.json` — used by the tutorial and the
-smoke test.
+`outputs/B_brutalist_32_langs_raw.jpg` is a committed legacy Grok artifact used
+as complete JPEG bytes by the tutorial and smoke test. The opt-in provider
+canaries use the dill-pickle brief in `recipes/live_test_recipe.json`.
 
 ---
 
@@ -640,10 +651,16 @@ smoke test.
 uv run pytest
 ```
 
-The suite covers prompt rendering, layout and aspect resolution, all three
-CLIs, provider request/response fixtures, credential tiers, the brief expander,
-and an end-to-end smoke test. Provider adapter tests are offline. The smoke test
-skips with a clear message when the reference artifact in `outputs/` is absent.
+```
+385 passed, 3 skipped
+```
+
+No credentials, no network. The three skips are live provider canaries, which
+run only when you explicitly authorize the spend — a populated API key does not
+enable them.
+
+Full details, including the markers, the live canaries, and the branch-aware
+capability gates: [Testing reference](docs/reference-testing.md).
 
 ---
 
@@ -675,6 +692,7 @@ skips with a clear message when the reference artifact in `outputs/` is absent.
 |---|---|---|
 | [Tutorial: your first announcement image](docs/tutorial-first-image.md) | Tutorial | Learning the pipeline by running it once |
 | [Python API and implementation reference](docs/reference-python-api.md) | Reference | Calling the library, or reading the internals |
+| [Testing reference](docs/reference-testing.md) | Reference | Running the suite, markers, live canaries, coverage gates |
 | [About the pipeline](docs/explanation-pipeline.md) | Explanation | Understanding what's built, what isn't, and why |
 | [About layouts](docs/explanation-layouts.md) | Explanation | Choosing an arrangement, or understanding the one lith derived |
 | [About output styles](docs/explanation-output-styles.md) | Explanation | Choosing a family, and how one spec renders seven ways |

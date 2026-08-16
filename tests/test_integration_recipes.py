@@ -8,6 +8,8 @@ a live sweep costs money, but the prompt-side contract can be verified free.
 import json
 import pathlib
 import re
+import struct
+import zlib
 
 import pytest
 
@@ -22,6 +24,15 @@ SLOTS = ("{spec}", "{layout}", "{headline}", "{icon}", "{volume}",
          "{base_color}", "{accent}")
 # Strings that must never reach the prompt as something a model could letter.
 LEAKS = ("TITLE BLOCK", "SECTION PANELS", "DIAGRAM PANEL", "DIAGRAM:", "FOOTER —")
+pytestmark = pytest.mark.integration
+
+
+def _png(width, height):
+    def chunk(kind, payload):
+        return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF)
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    pixels = zlib.compress((b"\x00" + b"\x20\x80\x40" * width) * height)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", pixels) + chunk(b"IEND", b"")
 
 
 def test_testbed_is_present():
@@ -125,6 +136,18 @@ def test_testbed_covers_sparse_and_dense_briefs():
     assert 0 in counts, "no title-only brief"
     assert 1 in counts, "no single-section brief"
     assert max(counts) >= 6, "no dense brief"
+
+
+def test_testbed_is_uniformly_about_dill_pickles_with_substantial_copy():
+    briefs = _briefs()
+    assert {brief["topic"] for brief in briefs} == {
+        "Dill Pickles and all things great about them"
+    }
+    assert {brief["headline"] for brief in briefs} == {"DILL PICKLES"}
+    for brief in briefs:
+        for section in brief.get("sections", []):
+            assert len(section["lines"]) >= 3
+            assert sum(len(line.split()) for line in section["lines"]) >= 15
 
 
 # --- the same testbed driven through both console scripts -------------------
@@ -286,8 +309,7 @@ def test_run_rejects_a_non_image_file(monkeypatch, tmp_path):
 def test_run_publishes_png_bytes_under_a_png_name(monkeypatch, tmp_path):
     """The extension follows the bytes, not the recipe or the source name."""
     src = tmp_path / "candidate.jpg"          # deliberately mislabelled
-    src.write_bytes(b"\x89PNG\r\n\x1a\n" + b"\x00" * 8 +
-                    (1024).to_bytes(4, "big") + (1536).to_bytes(4, "big") + b"\x00" * 32)
+    src.write_bytes(_png(1024, 1536))
     out = tmp_path / "published"
     rc = _main("lith.cli.run",
                ["--recipe", str(RECIPES[0]), "--image-file", str(src),
@@ -321,7 +343,7 @@ def test_no_style_template_carries_letterable_example_copy():
 def test_sparse_briefs_are_flagged_and_dense_ones_are_not():
     from lith.render import copy_note
 
-    sparse = {"topic": "t", "headline": "TAILSCALE", "icon": "lightning",
+    sparse = {"topic": "t", "headline": "DILL PICKLES", "icon": "lightning",
               "sections": []}
     note = render_prompt(get_family(load_styles(), "A"), sparse)["copy_note"]
     assert note and "letter template wording" in note
@@ -343,7 +365,7 @@ def test_sparse_briefs_are_flagged_and_dense_ones_are_not():
 
 
 def test_testbed_output_stems_collide_so_a_sweep_must_isolate_them():
-    """34 recipes share the headline TAILSCALE; they do not get 34 paths.
+    """34 recipes share the headline DILL PICKLES; they do not get 34 paths.
 
     This is `output_path` working as documented, not a bug — but a sweep that
     publishes them all into one directory keeps 7 files and loses 27, which is

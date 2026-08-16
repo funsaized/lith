@@ -202,17 +202,20 @@ character against the spec, which is why stage 4 stays a human.
 
 Lith takes input from several places and treats each differently.
 
-**Recipe files are trusted.** You wrote them. `load_recipe` validates that the
-brief carries `topic`, `headline` and `icon`, and otherwise takes the JSON at
-face value. `aspect` is deliberately not required: it has a resolution chain,
-and demanding it in every recipe would make most of that chain unreachable.
+**Recipe files are authored input, but their shape is validated.** `load_recipe`
+requires a known style and model, a provider-valid candidate count, non-empty
+authored strings, well-shaped sections, known layout keys, and a syntactically
+positive aspect ratio when one is supplied. `aspect` is deliberately not
+required: it has a resolution chain, and demanding it in every recipe would
+make most of that chain unreachable. Model-produced briefs pass through the
+same `validate_brief` / `recipe_from_brief` boundary before rendering.
 
 **Model-generated image URLs are not.** `--image-url` reaches out to a host
 lith didn't choose, so `download()` enforces four guards: HTTP(S) schemes only,
 re-checked after redirects; a 30-second timeout; a 25 MB ceiling enforced while
-streaming rather than after; and a magic-byte check for JPEG, PNG, or WebP
-before anything is written to disk. A model API that returns an HTML error page
-fails at the magic-byte check instead of becoming a corrupt `.jpg`.
+streaming rather than after; and structural JPEG, PNG, or WebP validation before
+anything is written to disk. A model API that returns an HTML error page or a
+truncated image fails instead of becoming a corrupt published artifact.
 
 **Spec copy is trusted but shape-checked.** The strings in `sections` and
 `footer` are yours, and `format_spec` passes them through unescaped — they are
@@ -245,8 +248,8 @@ Matching on the provider name alone would sign an `api.openai.com` request with
 a token issued for `chatgpt.com/backend-api/codex`, and fail in a way that looks
 exactly like a bad key. Lith reads that file and never writes it.
 
-`--image-file` skips the network guards but keeps the magic-byte check, since a
-local path is your own. Either way the bytes land on a `.part` file first and
+`--image-file` skips the network guards but keeps structural image validation,
+since a local path is your own. Either way the bytes land on a `.part` file first and
 are renamed only once the format is known — not for crash safety but because
 the extension is a property of the bytes, and lith refuses to guess it from the
 recipe. Both paths buffer the whole body and write it once, after their guards

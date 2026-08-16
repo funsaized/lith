@@ -38,7 +38,7 @@ wherever a signature says `path`.
 
 ```
 src/lith/
-├── __init__.py          public API — re-exports six names
+├── __init__.py          public API — re-exports eight names
 ├── render.py            prompt-template substitution, spec and layout blocks
 ├── aspect.py            capability records, aspect resolution, pixel sizes
 ├── layout.py            zone notes and panel arrangements
@@ -46,7 +46,7 @@ src/lith/
 ├── styles.py            styles.json access
 ├── paths.py             slug and output-path derivation
 ├── expand.py            LLM-backed topic expansion
-├── imagebytes.py        image download, magic-byte sniffing, dimensions
+├── imagebytes.py        image download, structural validation, dimensions
 ├── call/
 │   ├── __init__.py      uniform request/results and provider dispatcher
 │   ├── capability.py    model-to-provider routing
@@ -91,12 +91,14 @@ access is isolated to `imagebytes.download` and the provider adapters' shared
 
 ## `lith` — public API
 
-`__init__.py` re-exports six names. `__all__` lists exactly these.
+`__init__.py` re-exports eight names. `__all__` lists exactly these.
 
 | Name | Kind | Defined in |
 |---|---|---|
 | [`render_prompt`](#render_prompt) | function | `lith.render` |
 | [`load_recipe`](#load_recipe) | function | `lith.recipe` |
+| [`recipe_from_brief`](#recipe_from_brief) | function | `lith.recipe` |
+| [`validate_brief`](#validate_brief) | function | `lith.recipe` |
 | [`expand_brief`](#expand_brief) | function | `lith.expand` |
 | [`parse_brief_response`](#parse_brief_response) | function | `lith.expand` |
 | [`output_path`](#output_path) | function | `lith.paths` |
@@ -171,6 +173,11 @@ any bundled family:
 >>> render_prompt(get_family(load_styles(), "B"), {})["aspect_ratio"]
 '16:9'
 ```
+
+`validate_brief(brief)` validates generated or hand-authored brief mappings;
+`recipe_from_brief(brief, *, style, model, n, name, description)` applies that
+validation and constructs a `Recipe`. These are the intended bridge from
+`expand_brief` to rendering.
 
 **Raises**
 
@@ -832,13 +839,83 @@ directly to bypass file loading and its checks.
 **`family_key`** (property) → `str`. Returns `FAMILY_KEYS[self.style]`. Raises
 `KeyError` if `style` is not one of `A`–`G`.
 
+### `validate_brief`
+
+```python
+validate_brief(brief: Any) -> dict[str, Any]
+```
+
+Validates brief data at the pipeline boundary and returns the same object
+unchanged. Applied to every brief by
+[`recipe_from_brief`](#recipe_from_brief), and therefore by
+[`load_recipe`](#load_recipe).
+
+Checks, in order:
+
+| Subject | Rule |
+|---|---|
+| `brief` | Must be a JSON object. |
+| `topic`, `headline`, `icon` | Required. |
+| `topic`, `headline`, `title`, `subtitle`, `diagram`, `footer`, `icon`, `volume` | When present, a non-empty string. |
+| `base_color`, `accent` | A non-empty string, or a non-empty list of non-empty strings. |
+| `sections` | A list; each entry an object with a non-empty `heading`, and `lines` a list of non-empty strings. |
+| `aspect` | `"auto"` or a positive `W:H` ratio. |
+| `layout` | One of [`ARRANGEMENTS`](#arrangements). |
+| `diagram_position` | One of [`DIAGRAM_POSITIONS`](#diagram_positions). |
+
+**Raises** `ValueError` naming the offending field, with 1-based indices for
+sections and lines (`brief section 2.lines[3] must be a non-empty string`).
+
+**Returns** the input object itself, not a copy. Validation does not normalize,
+default, or coerce any value.
+
+### `recipe_from_brief`
+
+```python
+recipe_from_brief(
+    brief: Any,
+    *,
+    style: str,
+    model: str = "grok-imagine-image-2.0",
+    n: int = 4,
+    name: str = "generated",
+    description: str | None = None,
+) -> Recipe
+```
+
+Builds a validated `Recipe` from a brief already in memory — a brief produced by
+[`expand_brief`](#expand_brief), or one assembled in code — without writing a
+file. [`load_recipe`](#load_recipe) is this function plus JSON reading.
+
+| Argument | Rule |
+|---|---|
+| `style` | A key of [`FAMILY_KEYS`](#family_keys): `A`–`G`. |
+| `model` | A key of [`MODEL_ASPECTS`](#model_aspects). |
+| `n` | An integer from 1 through that model's `n_max`. `bool` is rejected. |
+| `name` | A non-empty string. |
+| `description` | `None`, or a non-empty string. |
+
+`brief` is passed through [`validate_brief`](#validate_brief).
+
+**Raises** `ValueError` for an unknown style or model, an out-of-range `n`, an
+empty `name` or `description`, or any brief violation.
+
+```python
+>>> from lith import recipe_from_brief
+>>> recipe = recipe_from_brief(brief, style="B", n=2)
+>>> recipe.family_key
+'B_brutalist'
+```
+
 ### `load_recipe`
 
 ```python
 load_recipe(path: pathlib.Path | str) -> Recipe
 ```
 
-Reads a JSON recipe file and returns a `Recipe`.
+Reads a JSON recipe file and returns a `Recipe`. Delegates every check to
+[`recipe_from_brief`](#recipe_from_brief), re-raising its `ValueError` prefixed
+with the recipe path.
 
 **Defaults applied** when a key is absent:
 
@@ -857,21 +934,14 @@ text for whoever opens the recipe file.
 
 | Exception | Condition |
 |---|---|
-| `ValueError` | One or more of `REQUIRED_BRIEF_KEYS` is missing. Message names the file and lists the missing keys, sorted. |
-| `KeyError` | `style` is absent from the file. |
+| `ValueError` | Recipe/brief shape is invalid, style/model is unknown, `n` exceeds its model limit, or an aspect/layout value is invalid. |
 | `json.JSONDecodeError` | The file is not valid JSON. |
 | `FileNotFoundError` | `path` does not exist. |
-
-**Not validated:** `style` is not checked against `FAMILY_KEYS`, `n` is not
-checked to be a positive integer, `model` is not checked against the CLI's
-choices, and `aspect` is not checked against the four supported ratios. A
-recipe with `"style": "Z"` loads without error and raises `KeyError: 'Z'` later,
-at `.family_key` or `get_family`.
 
 ```python
 >>> r = load_recipe("recipes/live_test_recipe.json")
 >>> r.family_key, r.model, r.n
-('B_brutalist', 'grok-imagine-image-quality', 4)
+('B_brutalist', 'grok-imagine-image-2.0', 1)
 ```
 
 ---
@@ -1202,10 +1272,9 @@ bytes. Provider adapters and both image-handling CLIs import these names.
 image_size(body: bytes) -> tuple[int, int] | None
 ```
 
-Reads `(width, height)` from a PNG IHDR or a JPEG SOF marker.
-Returns `None` for WebP — three container variants, and no model in the CLI's
-list returns it — and for any header it cannot walk. Header inspection only;
-no decode.
+Reads `(width, height)` from a PNG IHDR, JPEG SOF marker, or VP8, VP8L, and VP8X
+WebP header. Returns `None` for a container it cannot walk. This is structural
+inspection, not a full pixel decode.
 
 ### `image_ext`
 
@@ -1224,8 +1293,9 @@ validation of anything past byte 12.
 looks_like_image(body: bytes) -> bool
 ```
 
-`image_ext(body) is not None`. The two share one table so a format
-the guard admits is always a format the publisher can name.
+Validates the complete container structure: PNG chunk bounds and CRCs plus
+IHDR/IDAT/IEND, JPEG frame dimensions plus end marker, or RIFF sizing and a
+dimensioned VP8/VP8L payload. It does not perform OCR or semantic image review.
 
 ### `fetch_image`
 
@@ -1233,7 +1303,7 @@ the guard admits is always a format the publisher can name.
 fetch_image(url: str) -> bytes
 ```
 
-Applies the same URL, redirect, size, and magic-byte guards as `download`, then
+Applies the same URL, redirect, size, and structural image guards as `download`, then
 returns the validated bytes without writing a file. Provider adapters use this
 for URL-form candidates.
 
@@ -1253,7 +1323,7 @@ Fetches an image over HTTP(S) into `dst`, applying five guards in order:
    an `http(s)` URL redirecting to `file:` is refused.
 4. **Size ceiling.** Chunks are counted while streaming and the read aborts
    past `DOWNLOAD_MAX_BYTES`, before the body is assembled or written.
-5. **Magic bytes.** `looks_like_image` must pass. An HTML error page fails
+5. **Image structure.** `looks_like_image` must pass. HTML and truncated/corrupt containers fail
    here rather than landing on disk as a `.jpg`.
 
 Sends `User-Agent: lith/1.0`. Creates `dst.parent` and writes only after all
@@ -1312,8 +1382,8 @@ the same `looks_like_image` check, creates `dst.parent`, and writes — unless
 `src` and `dst` resolve to the same file, in which case the write is skipped.
 Returns `dst`.
 
-**Raises** `FileNotFoundError` if `src` is not a file; `ValueError` if the
-magic-byte check fails.
+**Raises** `FileNotFoundError` if `src` is not a file; `ValueError` if structural
+image validation fails.
 
 ### `main`
 
@@ -1370,7 +1440,7 @@ tracebacks.
 | `ValueError` | `pixel_size` | Unknown/non-pixel model, invalid ratio, or unreachable size |
 | `ValueError` | `provider_for_model`, `generate` | Unknown model or wrong-provider credential |
 | `ValueError` | `download` | Bad scheme, bad redirect, oversize body, non-image bytes |
-| `ValueError` | `load_local` | Non-image bytes |
+| `ValueError` | `load_local` | Structurally invalid or non-image bytes |
 | `MissingCredential` | `resolve_credential`, provider `generate` | All four credential tiers exhausted |
 | `CredentialFileError` | `resolve_credential` | Existing `.env` or `auth.json` unreadable/malformed |
 | `InvalidRequest` | provider adapters | Invalid request field or combination before/during a call |

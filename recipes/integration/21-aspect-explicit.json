@@ -1,49 +1,50 @@
 {
   "name": "integration-21-aspect-explicit",
-  "description": "Integration testbed row: family C, model grok-imagine-image-2.0.",
+  "description": "Dill pickle integration fixture for 21-aspect-explicit; preserves its layout, aspect, density, and model coverage role.",
   "style": "C",
   "model": "grok-imagine-image-2.0",
   "n": 2,
   "brief": {
-    "topic": "private tailscale mesh across three machines",
-    "headline": "TAILSCALE",
+    "topic": "Dill Pickles and all things great about them",
+    "headline": "DILL PICKLES",
     "icon": "lightning",
     "sections": [
       {
-        "heading": "01 - THE HUB",
+        "heading": "01 - COLD CRUNCH",
         "lines": [
-          "Mac mini M4, always on",
-          "Runs every long-lived job",
-          "Wakes on LAN if it sleeps"
+          "Firm cucumbers snap with every bite",
+          "Cold spears wake up burgers and sandwiches",
+          "That crisp texture is pure pickle joy"
         ]
       },
       {
-        "heading": "02 - THE MESH",
+        "heading": "02 - BRIGHT BRINE",
         "lines": [
-          "Tailscale WireGuard overlay",
-          "MINI, AIR and NZXT peered direct",
-          "No open ports, no forwarding"
+          "Vinegar delivers a clean tangy spark",
+          "Salt carries flavor deep into every slice",
+          "Balanced acidity keeps rich food lively"
         ]
       },
       {
-        "heading": "03 - THE SESSION",
+        "heading": "03 - FRESH DILL",
         "lines": [
-          "mosh survives every dropped link",
-          "herdr holds agent sessions open"
+          "Feathery dill makes every jar smell like summer",
+          "Its grassy aroma defines the classic flavor",
+          "Fresh sprigs turn simple brine extraordinary"
         ]
       },
       {
-        "heading": "04 - INGRESS",
+        "heading": "04 - GARLIC POWER",
         "lines": [
-          "Caddy fronts *.dev.s11a.com",
-          "ACME DNS-01 through Netlify",
-          "Certificates renew unattended"
+          "Whole cloves bring savory depth to the jar",
+          "Peppercorns add a warm aromatic finish",
+          "Mustard seed rounds out every crunchy bite"
         ]
       }
     ],
-    "subtitle": "A PRIVATE CLOUD IN THREE MACHINES",
-    "diagram": "A central cloud labeled TAILSCALE with three lines running down to boxes labeled MINI, AIR and NZXT",
-    "footer": "s11a.com",
+    "subtitle": "CRUNCH, TANG, AND BRINY JOY",
+    "diagram": "A glass pickle jar in the center connects to four labels: CRUNCH, BRINE, DILL and GARLIC",
+    "footer": "EST. 1947 • KEEP IT COLD. KEEP IT CRISP.",
     "aspect": "1:1"
   }
 }

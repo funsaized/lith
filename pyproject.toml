@@ -47,3 +47,19 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "lith" = ["data/styles.json"]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: deterministic cross-module integration coverage",
+    "live_provider: opt-in test that contacts and spends money with a real provider",
+    "live_xai: opt-in xAI provider canary",
+    "live_openai: opt-in OpenAI provider canary",
+    "live_minimax: opt-in MiniMax provider canary",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["lith"]
+
+[tool.coverage.report]
+show_missing = true

@@ -1,12 +1,12 @@
 {
   "name": "integration-25-sparse-title-only",
-  "description": "Integration testbed row: family F, model grok-imagine-image-2.0.",
+  "description": "Dill pickle integration fixture for 25-sparse-title-only; preserves its layout, aspect, density, and model coverage role.",
   "style": "F",
   "model": "grok-imagine-image-2.0",
   "n": 2,
   "brief": {
-    "topic": "private tailscale mesh across three machines",
-    "headline": "TAILSCALE",
+    "topic": "Dill Pickles and all things great about them",
+    "headline": "DILL PICKLES",
     "icon": "lightning",
     "sections": []
   }

@@ -1,14 +1,40 @@
 {
   "name": "live_test_recipe",
-  "description": "Single live generation test for the Sci-fi brutalist UI family. Confirms real Grok output.",
+  "description": "Opt-in, low-count live provider canary using a complete dill-pickle poster brief.",
   "style": "B",
   "brief": {
-    "topic": "Hermes Agent now supports 32 new languages",
-    "headline": "32 LANGS",
-    "icon": "globe",
-    "aspect": "16:9",
-    "volume": "1"
+    "topic": "Dill pickles bring cold crunch, bright acidity, fresh herbs, and garlicky joy to the table",
+    "headline": "DILL PICKLES",
+    "subtitle": "CRUNCH, TANG, AND BRINY JOY",
+    "icon": "lightning",
+    "aspect": "1:1",
+    "volume": "1",
+    "sections": [
+      {
+        "heading": "01 - COLD CRUNCH",
+        "lines": [
+          "Firm cucumbers snap with every bite",
+          "Ice-cold spears wake up any sandwich"
+        ]
+      },
+      {
+        "heading": "02 - BRIGHT BRINE",
+        "lines": [
+          "Vinegar delivers a clean tangy spark",
+          "Salt pulls deep flavor into every slice"
+        ]
+      },
+      {
+        "heading": "03 - DILL MAGIC",
+        "lines": [
+          "Fresh dill makes the jar smell like summer",
+          "Garlic and peppercorns finish the party"
+        ]
+      }
+    ],
+    "diagram": "A pickle jar in the center connects to four labels: CRUNCH, BRINE, DILL, and GARLIC",
+    "footer": "KEEP IT COLD. KEEP IT CRISP."
   },
-  "model": "grok-imagine-image-quality",
-  "n": 4
+  "model": "grok-imagine-image-2.0",
+  "n": 1
 }

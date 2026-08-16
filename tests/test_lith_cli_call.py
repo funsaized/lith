@@ -1,7 +1,9 @@
 import json
 import pathlib
 import re
+import struct
 import sys
+import zlib
 
 import pytest
 
@@ -55,11 +57,21 @@ def _main(monkeypatch, *argv):
 
 
 def _png(width=20, height=30):
+    def chunk(kind, payload):
+        return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF)
+    ihdr = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    pixels = zlib.compress((b"\x00" + b"\x20\x80\x40" * width) * height)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", pixels) + chunk(b"IEND", b"")
+
+
+def _jpeg(width=20, height=30):
     return (
-        b"\x89PNG\r\n\x1a\n"
-        + b"\x00" * 8
-        + width.to_bytes(4, "big")
-        + height.to_bytes(4, "big")
+        b"\xff\xd8\xff\xc0\x00\x0b\x08"
+        + height.to_bytes(2, "big")
+        + width.to_bytes(2, "big")
+        + b"\x01\x01\x11\x00"
+        + b"\xff\xda\x00\x08\x01\x01\x00\x00\x3f\x00\x00"
+        + b"\xff\xd9"
     )
 
 
@@ -258,12 +270,12 @@ def test_check_prints_route_and_specific_reason_without_auth(
     assert "reason=Hermes image_generate cannot preserve resolved aspect '2:3'" in output
 
 
-def test_previous_grok_live_recipe_is_capable_and_routable(tmp_path):
+def test_opt_in_grok_canary_recipe_is_capable_and_routable(tmp_path):
     path = pathlib.Path(__file__).resolve().parents[1] / "recipes" / "live_test_recipe.json"
     recipe = load_recipe(path)
     rendered = render_prompt(recipe)
 
-    assert recipe.model == "grok-imagine-image-quality"
+    assert recipe.model == "grok-imagine-image-2.0"
     assert provider_for_model(recipe.model) == "xai"
     assert rendered["aspect_note"] is None
     assert call_cli.routing_decision(
@@ -291,7 +303,7 @@ def test_live_call_is_recipe_anchored_preserves_prompt_and_writes_magic_extensio
     result = CallResult(
         candidates=[
             Candidate(0, _png(), "reported/wrong", (20, 30)),
-            Candidate(1, b"\xff\xd8\xfffixture", "reported/wrong", None),
+            Candidate(1, _jpeg(), "reported/wrong", (20, 30)),
         ],
         model_reported="grok-imagine-image-2.0",
         aspect_reported="2:3",

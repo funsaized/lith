@@ -1,12 +1,12 @@
 {
   "name": "integration-20-aspect-family",
-  "description": "Integration testbed row: family A, model grok-imagine-image.",
+  "description": "Dill pickle integration fixture for 20-aspect-family; preserves its layout, aspect, density, and model coverage role.",
   "style": "A",
   "model": "grok-imagine-image",
   "n": 2,
   "brief": {
-    "topic": "private tailscale mesh across three machines",
-    "headline": "TAILSCALE",
+    "topic": "Dill Pickles and all things great about them",
+    "headline": "DILL PICKLES",
     "icon": "lightning",
     "sections": []
   }

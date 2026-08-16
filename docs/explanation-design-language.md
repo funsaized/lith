@@ -152,9 +152,11 @@ against the spec before shipping it.
 
 **The AI-gradient trap.** Purple-to-blue diagonal gradient, 3D-rendered icon,
 gloss highlight. If the result has all three, generation drifted to the
-training-set average. Reject and re-prompt rather than accepting it; each
-family's `negative_prompt` exists to push against this, but negatives are a
-nudge, not a guarantee.
+training-set average. Reject and re-prompt rather than accepting it. Each
+family's `negative_prompt` was written to push against this — but none of the
+three providers `lith-call` reaches accepts a negative prompt, so on those the
+only thing holding the aesthetic is how specifically the positive template
+describes something else.
 
 **A typeface can corrupt copy the verbatim rule protected.** Family F specified
 a Garamond-class serif, which brings old-style figures — numerals that sit below
@@ -162,6 +164,32 @@ the baseline. `s11a.com` rendered as `sIIa.com` and `DNS-01` as `DNS-0I`: the
 right characters, the wrong word. The copy block guarantees which characters are
 requested, never which glyphs a face draws them with, so a family choosing a
 typeface is also choosing how digits and small caps behave.
+
+The fix carried its own lesson. F's template was amended to name the failure —
+quoting `s11a.com` and its corrupted form as an example of what not to do — and
+on a title-only brief the model lettered the *counter-examples* into the poster.
+A warning written as a quotation is still text in the prompt. The instruction now
+describes the failure without spelling it, and a test refuses any template
+carrying a content-shaped literal.
+
+**Panel area decides legibility, more than anything in the palette.** The same
+dense brief that leaked style instructions into its title at a 1k render came
+back exact at 2k, on the same model with the same prompt. Nine panels in a
+1280×720 frame give each panel roughly a tenth of the pixels it needs; the text
+degrades first, and what fills the gap is whatever the model can read nearby.
+Before blaming a family for garbling copy, count the panels and check the frame
+— a portrait frame, fewer sections, or `--resolution 2k` fixes more than any
+prompt edit.
+
+**A near-empty brief invites the template into the frame.** A family whose
+composition implies multiplicity cannot render a title-only poster. Asked for a
+*sticker sheet* with one line of copy, A builds the sheet anyway and fills five
+stickers from the nearest concrete strings in the prompt — palette hex codes and
+a font name. F, asked for the same thing, renders a clean broadside, because a
+broadside with one headline is a coherent object and a sheet with one sticker is
+not. `render_prompt` emits a `copy_note` when the copy block is thin relative to
+the instructions around it; it correctly flags both cases and cannot tell you
+which way the family will resolve them.
 
 **Instructions can be mistaken for content.** When zone notes were ALL-CAPS
 labels, three families lettered `TITLE BLOCK` and `4 SECTION PANELS` into real

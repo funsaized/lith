@@ -23,9 +23,9 @@ source prints its plan and exits 0.
 
 New here? Work through
 [Tutorial: your first announcement image](docs/tutorial-first-image.md) — a
-brief to a finished image in five steps, no API key required.
+brief to a finished image in six steps, with a path that needs no API key.
 
-Why the pipeline stops where it does:
+Where the pipeline draws its lines, and why it now makes the call itself:
 [About the pipeline](docs/explanation-pipeline.md). How the same spec renders
 seven ways: [About output styles](docs/explanation-output-styles.md). How panels
 get arranged: [About layouts](docs/explanation-layouts.md). The palette and

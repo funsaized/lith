@@ -659,6 +659,23 @@ network access and raises `PromptTooLong`, an `InvalidRequest` subclass, naming
 the measured length, cap, and backlog §3.1. Every current integration prompt is
 over that cap.
 
+### `provider_for_model`
+
+```python
+provider_for_model(model: str) -> str
+```
+
+Defined in `lith.call.capability`. Maps a model id to the adapter name that
+serves it — `"xai"`, `"openai"`, or `"minimax"` — from the `MODEL_PROVIDERS`
+table. [`generate`](#generate) uses it to select which adapter module to import.
+
+The table's keys are exactly the keys of
+[`aspect.MODEL_ASPECTS`](#model_aspects): a model that can be routed has a
+capability record, and a model with a capability record can be routed.
+
+**Raises** `ValueError` for an unknown id, listing every supported model. There
+is no default provider and no inference from the id's shape.
+
 ### Credentials
 
 ```python
@@ -701,6 +718,72 @@ authorization values from rendered errors, and maps HTTP/provider payloads to
 those types. MiniMax's `base_resp.status_code` is checked even inside HTTP 200.
 An OAuth-sourced xAI 401 becomes `token expired — let Hermes refresh it`; lith
 never refreshes or writes Hermes credentials.
+
+### Provider adapters
+
+Three modules, one per provider, each exposing the same three names.
+[`generate`](#generate) imports the one
+[`provider_for_model`](#provider_for_model) selects.
+
+| Module | Endpoint | Models |
+|---|---|---|
+| `lith.call.xai` | `https://api.x.ai/v1/images/generations` | `grok-imagine-image-2.0`, `grok-imagine-image-quality`, `grok-imagine-image` |
+| `lith.call.openai` | `https://api.openai.com/v1/images/generations` | `gpt-image-2`, `gpt-image-2-2026-04-21`, `gpt-image-1.5`, `gpt-image-1`, `gpt-image-1-mini` |
+| `lith.call.minimax` | `https://api.minimax.io/v1/image_generation` | `image-01` |
+
+```python
+build_request(request: ImageRequest, **provider_options) -> dict[str, Any]
+unsupported_fields(request: ImageRequest) -> dict[str, str]
+generate(request, *, credential=None, **provider_options) -> CallResult
+```
+
+`build_request` is pure: it performs no credential lookup and no network access,
+which is what [`lith-call --dry-run`](#lithclicall) prints.
+
+**Request bodies.** Each adapter sends only what its provider documents.
+
+| Field sent | xai | openai | minimax |
+|---|---|---|---|
+| `model`, `prompt`, `n` | ✓ | ✓ | ✓ |
+| `aspect_ratio` | ✓ | — | ✓ when in the enum |
+| `width` / `height` | — | — | ✓ otherwise |
+| `size` | — | ✓ via [`pixel_size`](#pixel_size) | — |
+| `response_format` | ✓ `b64_json` | — | ✓ `base64` |
+| `resolution` | ✓ when supplied | — | — |
+| `quality`, `background` | — | ✓ when supplied | — |
+| `output_format`, `output_compression`, `moderation` | — | ✓ | — |
+| `seed` | — | — | ✓ when supplied |
+| `prompt_optimizer` | — | — | ✓ always `False` |
+| `storage_options` | ✓ when supplied | — | — |
+
+`n` is validated against the provider's own ceiling: 1–10 on xAI and OpenAI,
+1–9 on MiniMax.
+
+**Provider options** are keyword-only and adapter-specific. `xai` takes
+`storage_options` — a mapping of `filename` (required), `expires_after`, and
+`public_url` — and switches `response_format` to `url` when it is present.
+`openai` takes `output_format`, `output_compression`, and `moderation`.
+`minimax` takes none.
+
+**Adapter-specific constants.**
+
+| Name | Module | Value |
+|---|---|---|
+| `GENERATION_TIMEOUT` | `xai`, `openai` | `180.0` seconds |
+| `MODEL` | `minimax` | `"image-01"` |
+| `PROMPT_MAX_CHARS` | `minimax` | `1500` |
+| `SUPPORTED_ASPECTS` | `minimax` | the eight-ratio enum |
+
+**Raises.** `InvalidRequest` for an out-of-range `n`, an unsupported
+`resolution`, an `aspect` of `"auto"`, a malformed `storage_options`, or a ratio
+MiniMax cannot represent within 1% using width/height. `minimax` additionally
+raises `PromptTooLong` — a subclass of `InvalidRequest` — before any credential
+lookup or network call when the prompt exceeds `PROMPT_MAX_CHARS`, reporting the
+measured length and the cap.
+
+`prompt_optimizer` is sent explicitly as `False` rather than relying on the
+MiniMax default: it rewrites the submitted prompt, which contains the literal
+copy block.
 
 ---
 

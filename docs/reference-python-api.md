@@ -1,7 +1,7 @@
 # Python API and implementation reference
 
 Complete reference for the `lith` package, version 0.1.0 — every public name,
-every module, and the internals both console scripts are built from.
+every module, and the internals its three console scripts are built from.
 
 For flags and file formats, see [README → CLI reference](../README.md#cli-reference)
 and [README → Recipe format](../README.md#recipe-format). For why the package
@@ -20,11 +20,13 @@ wherever a signature says `path`.
 - [`lith.render`](#lithrender)
 - [`lith.layout`](#lithlayout)
 - [`lith.aspect`](#lithaspect)
+- [`lith.call`](#lithcall)
 - [`lith.recipe`](#lithrecipe)
 - [`lith.styles`](#lithstyles)
 - [`lith.paths`](#lithpaths)
 - [`lith.expand`](#lithexpand)
 - [`lith.cli.generate`](#lithcligenerate)
+- [`lith.cli.call`](#lithclicall)
 - [`lith.cli.run`](#lithclirun)
 - [Exception summary](#exception-summary)
 - [Side effects and determinism](#side-effects-and-determinism)
@@ -37,38 +39,52 @@ wherever a signature says `path`.
 src/lith/
 ├── __init__.py          public API — re-exports six names
 ├── render.py            prompt-template substitution, spec and layout blocks
-├── aspect.py            aspect resolution and per-model capability
+├── aspect.py            capability records, aspect resolution, pixel sizes
 ├── layout.py            zone notes and panel arrangements
 ├── recipe.py            Recipe dataclass, family keys, recipe loading
 ├── styles.py            styles.json access
 ├── paths.py             slug and output-path derivation
 ├── expand.py            LLM-backed topic expansion
+├── imagebytes.py        image download, magic-byte sniffing, dimensions
+├── call/
+│   ├── __init__.py      uniform request/results and provider dispatcher
+│   ├── capability.py    model-to-provider routing
+│   ├── creds.py         four-tier credential resolution
+│   ├── http.py          urllib JSON transport and typed provider errors
+│   ├── xai.py           xAI generations adapter
+│   ├── openai.py        OpenAI generations adapter
+│   └── minimax.py       MiniMax text-to-image adapter
 ├── data/styles.json     the seven style families
 └── cli/
     ├── generate.py      lith-generate entry point
+    ├── call.py          lith-call entry point
     └── run.py           lith-run entry point
 ```
 
-Internal dependency direction, no cycles:
+The prompt side remains pure and points downward only:
 
 ```
 recipe  ←  styles
    ↑          ↑
-   └──────────┴──  render  ←  __init__  ←  cli.generate, cli.run
+   └──────────┴──  render  ←  __init__  ←  cli.generate
              ↗   ↖
         aspect     layout        (pure; depend on nothing in-package)
 
 paths, expand                    (leaves; depend on nothing in-package)
+
+aspect, imagebytes  ←  call adapters  ←  lith.call dispatcher  ←  cli.call
+imagebytes, render, paths                                      ←  cli.run
 ```
 
 `render` is the only module that composes others: it resolves the frame through
 `aspect`, describes the zones through `layout`, and serializes the copy block
-itself. `aspect` and `layout` never import each other — orientation crosses
-between them as a plain `bool` argument that `render` computes.
+itself. The provider layer may import pure modules such as `aspect` and
+`imagebytes`; pure modules never import `lith.call` or `lith.cli`.
 
 Runtime dependencies: none beyond the standard library, and no external
-binaries. The only subprocess the package ever starts is the `llm_cmd` a caller
-hands to `expand_brief`; the only network call is `download` in `cli.run`.
+binaries. `expand_brief` starts only the `llm_cmd` a caller supplies. Network
+access is isolated to `imagebytes.download` and the provider adapters' shared
+`urllib` JSON transport.
 
 ---
 
@@ -91,7 +107,7 @@ from lith import load_recipe, render_prompt
 
 Names not in `__all__` — `Recipe`, `FAMILY_KEYS`, `load_styles`, `get_family`,
 `format_spec`, `format_layout`, and the module constants — are importable from
-their defining modules and are used by both console scripts.
+their defining modules and are used by the console scripts.
 
 ---
 
@@ -344,19 +360,59 @@ zones track the spec instead of being a fixed skeleton:
 ### `MODEL_ASPECTS`
 
 ```python
-MODEL_ASPECTS: dict[str, set[str]]
+MODEL_ASPECTS: dict[str, ModelCapability]
 ```
 
-| Model | Generation | Can produce |
-|---|---|---|
-| `grok-imagine-image-2.0` | current, **default** | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `2:1` `1:2` `20:9` `9:20` |
-| `gpt-image-2` | current | `1:1` `3:2` `2:3` `4:3` `3:4` `16:9` `9:16` `2:1` `1:2` `5:4` `4:5` `3:1` `1:3` `21:9` `9:21` |
-| `grok-imagine-image-quality`, `grok-imagine-image` | previous | `1:1` `16:9` `9:16` `4:3` `3:4` `3:2` `2:3` `2:1` `1:2` |
-| `gpt-image-1` | previous | `1:1` `3:2` `2:3` |
-| `minimax-image` | — | not listed, so never clamped |
+Every known model carries one aspect-capability variant plus its request
+limits. A model absent from the table is unconstrained by the prompt renderer;
+the call dispatcher still rejects unknown ids.
 
-A model absent from the table is unconstrained: `nearest_supported` returns the
-request unchanged and no warning is raised.
+| Model | Aspect variant | Other limits |
+|---|---|---|
+| `grok-imagine-image-2.0` | 14-value `ratio_enum`, including `auto` | `n_max=10` |
+| `gpt-image-2`, `gpt-image-2-2026-04-21` | `pixel_range`: edges ÷16 and ≤3840; ratio `1:3`–`3:1`; 655,360–8,294,400 pixels; `allows_auto=True` | `n_max=10` |
+| `gpt-image-1.5`, `gpt-image-1`, `gpt-image-1-mini` | `pixel_sizes=("1024x1024", "1536x1024", "1024x1536", "auto")` | `n_max=10` |
+| `image-01` | 8-value `ratio_enum` | `n_max=9`, `prompt_max_chars=1500` |
+
+The xAI enum is `1:1`, `3:4`, `4:3`, `9:16`, `16:9`, `2:3`, `3:2`,
+`9:19.5`, `19.5:9`, `9:20`, `20:9`, `1:2`, `2:1`, `auto`. The MiniMax enum
+is `1:1`, `16:9`, `4:3`, `3:2`, `2:3`, `3:4`, `9:16`, `21:9`. Adapters never
+send `auto`; lith resolves a concrete frame.
+
+### `PixelSizeRange`
+
+```python
+@dataclass(frozen=True)
+class PixelSizeRange:
+    edge_multiple: int
+    min_aspect: float
+    max_aspect: float
+    min_pixels: int
+    max_pixels: int
+    max_edge: int
+    allows_auto: bool = False
+```
+
+The interacting constraints for a model that accepts arbitrary pixel sizes.
+It is data only; [`pixel_size`](#pixel_size) performs the search.
+
+### `ModelCapability`
+
+```python
+@dataclass(frozen=True)
+class ModelCapability:
+    n_max: int
+    prompt_max_chars: int | None = None
+    ratio_enum: frozenset[str] | None = None
+    pixel_sizes: tuple[str, ...] | None = None
+    pixel_range: PixelSizeRange | None = None
+```
+
+Exactly one of `ratio_enum`, `pixel_sizes`, and `pixel_range` must be non-null;
+construction otherwise raises `ValueError`. `n_max` and a non-null
+`prompt_max_chars` must be positive. `aspect in capability` checks a ratio enum,
+reduces fixed pixel sizes to ratios, or tests the range's aspect bounds.
+
 
 ### `ratio`
 
@@ -370,7 +426,7 @@ nonzero — `"auto"`, `"0:0"`, a non-string.
 ### `supported_by`
 
 ```python
-supported_by(model: str | None) -> set[str] | None
+supported_by(model: str | None) -> ModelCapability | None
 ```
 
 `MODEL_ASPECTS[model]`, or `None` for an unknown or absent model.
@@ -382,7 +438,8 @@ unsupported_aspect(model: str, aspect: str) -> str | None
 ```
 
 A message naming the supported set when `model` cannot produce `aspect`, else
-`None`.
+`None`. A constrained pixel range admits every parseable ratio inside its
+bounds rather than only a finite list of examples.
 
 ### `nearest_supported`
 
@@ -392,7 +449,43 @@ nearest_supported(model: str | None, aspect: str) -> str
 
 The supported ratio closest to `aspect` by width/height, so a portrait request
 lands on a portrait ratio. Returns `aspect` unchanged when the model is
-unconstrained, already supports it, or when `aspect` is unparseable.
+unconstrained, already supports it, or when `aspect` is unparseable. A ratio
+inside a constrained range is already supported and passes through unchanged.
+
+### `pixel_size`
+
+```python
+pixel_size(model: str, aspect: str) -> str
+```
+
+Translates an OpenAI model and concrete ratio to `"WIDTHxHEIGHT"`.
+
+- The GPT Image 1.x models visibly clamp through `nearest_supported`, then map
+  to one of their three fixed sizes.
+- `gpt-image-2` and its snapshot search sizes whose edges are divisible by 16,
+  whose ratio and pixel area are in range, and whose maximum edge is 3840. The
+  most accurate ratio wins; equal-error candidates prefer smaller area.
+
+Pure and deterministic. Raises `ValueError` for an unknown model, a ratio-enum
+model, an invalid or out-of-range aspect, or an aspect no legal pixel size can
+represent.
+
+```python
+>>> pixel_size("gpt-image-1", "16:9")
+'1536x1024'
+>>> pixel_size("gpt-image-2", "20:9")
+'1280x576'
+```
+
+### `request_limit_notes`
+
+```python
+request_limit_notes(model: str, n: int, prompt: str) -> list[str]
+```
+
+Returns notes when `n` exceeds the model's `n_max` or `len(prompt)` exceeds its
+`prompt_max_chars`. Unknown models return an empty list. This is advisory in
+`lith-generate`; provider adapters still validate before network access.
 
 ### `content_aspect`
 
@@ -431,6 +524,181 @@ Whatever the first four choose is then clamped by
 changed the answer.
 
 All functions in this module are pure — no file, network, or subprocess access.
+
+---
+
+## `lith.call`
+
+Provider-independent request and result types plus the model dispatcher. Importing
+the package performs no credential lookup and no network access; the selected
+adapter is imported lazily by `generate`.
+
+### `ImageRequest`
+
+```python
+@dataclass(frozen=True)
+class ImageRequest:
+    prompt: str
+    model: str
+    aspect: str
+    n: int = 1
+    seed: int | None = None
+    resolution: str | None = None
+    quality: str | None = None
+    background: str | None = None
+    negative_prompt: str | None = None
+```
+
+`aspect` is lith's resolved concrete `W:H` value. Adapters send only fields
+their provider accepts. A supplied field that cannot be sent is recorded in
+[`CallResult.unsupported`](#callresult); it is never appended or prepended to
+`prompt`.
+
+### `Candidate`
+
+```python
+@dataclass
+class Candidate:
+    index: int
+    data: bytes
+    mime: str
+    dimensions: tuple[int, int] | None
+```
+
+Provider base64 is decoded before return, so every candidate holds bytes.
+`dimensions` comes from PNG or JPEG headers and is `None` when the format's
+dimensions cannot be read.
+
+### `CallResult`
+
+```python
+@dataclass
+class CallResult:
+    candidates: list[Candidate]
+    model_reported: str | None
+    aspect_reported: str | None
+    revised_prompt: str | None
+    unsupported: dict[str, str]
+    cost: str | None
+    raw: dict
+```
+
+`model_reported`, `aspect_reported`, and `revised_prompt` surface provider
+evidence when it exists. A successful explicit xAI/OpenAI request falls back to
+the requested model id when the response omits a top-level model. Aspect does
+not receive that fallback: candidate dimensions are the evidence that a frame
+was honored. `cost` passes through xAI's `cost_in_usd_ticks` as text; lith does
+not estimate costs for any provider. `raw` is the provider response object.
+
+### `generate`
+
+```python
+generate(
+    request: ImageRequest,
+    *,
+    credential=None,
+    **provider_options,
+) -> CallResult
+```
+
+Routes by exact model id and calls the corresponding adapter. `credential` may
+be an already resolved [`Credential`](#credentials); when omitted, the adapter
+resolves one itself. Unknown ids raise `ValueError` before any adapter import or
+network access. Provider-specific keyword options are forwarded unchanged to
+the selected adapter.
+
+| Provider | Models | Translation |
+|---|---|---|
+| xAI | `grok-imagine-image-2.0` | Sends concrete `aspect_ratio`, optional `resolution`, `n`, and explicit `response_format=b64_json`. |
+| OpenAI | the five `gpt-image-*` ids in `MODEL_ASPECTS` | Sends [`pixel_size`](#pixel_size) as `size`, plus optional quality/background. GPT Image returns `b64_json` without a `response_format` request field. |
+| MiniMax | `image-01` | Sends an enum `aspect_ratio` or explicit `width`/`height`, optional seed, `prompt_optimizer=false`, and `response_format=base64`. |
+
+OpenAI-only controls stay off the uniform dataclass and are keyword arguments
+on `lith.call.openai.build_request` / `generate`:
+
+```python
+generate(
+    request,
+    *,
+    credential=None,
+    output_format: str = "png",
+    output_compression: int = 100,
+    moderation: str = "auto",
+) -> CallResult
+```
+
+Compression is emitted only for JPEG or WebP. The top-level dispatcher exposes
+these provider-specific controls through `**provider_options`, so callers may
+use either `lith.call.generate(request, output_format="webp", ...)` or the
+OpenAI adapter directly.
+
+xAI's default response format is inline `b64_json`. Passing `storage_options`
+through the dispatcher requests URL delivery instead:
+
+```python
+generate(
+    request,
+    storage_options={
+        "filename": "candidate.jpg",
+        "expires_after": 3600,
+        "public_url": True,
+    },
+)
+```
+
+`filename` is required; `expires_after` must be from 1 through 2,592,000
+seconds; and `public_url`, when present, must be a boolean. The adapter accepts
+the public URL under `file_output.public_url` or the candidate's ordinary
+`url`, fetches it under lith's download guards, and still returns image bytes in
+`Candidate.data`. The CLI does not expose this provider-specific option.
+
+MiniMax enforces its 1500-character prompt cap before credential resolution or
+network access and raises `PromptTooLong`, an `InvalidRequest` subclass, naming
+the measured length, cap, and backlog §3.1. Every current integration prompt is
+over that cap.
+
+### Credentials
+
+```python
+resolve_credential(
+    provider: str,
+    *,
+    recipe_path=None,
+    cwd=None,
+    environ=None,
+    home=None,
+) -> Credential
+```
+
+Searches shell → recipe repository `.env` → `~/.hermes/.env` →
+`~/.hermes/auth.json`; the first usable tier wins. The environment names are
+exactly `XAI_API_KEY`, `OPENAI_API_KEY`, and `MINIMAX_API_KEY`. Tier 4 accepts
+only OAuth entries whose `base_url` matches the provider image API. `Credential`
+holds `provider`, a repr-hidden `secret`, `tier`, `source`, `auth_type`, and
+optional OpenAI organization/project ids; `fingerprint` is an eight-character
+hash for inspection.
+
+Raises `MissingCredential` after all four tiers, with every searched location
+in the message, or `CredentialFileError` when an existing credential file
+cannot be read or parsed. Credential resolution never writes a file.
+
+### Provider errors
+
+`lith.call.http` defines this hierarchy:
+
+```text
+ProviderError
+├── AuthError
+├── RateLimited
+├── ContentRejected
+└── InvalidRequest
+```
+
+The standard-library JSON transport retries HTTP 429 and 5xx once, redacts
+authorization values from rendered errors, and maps HTTP/provider payloads to
+those types. MiniMax's `base_resp.status_code` is checked even inside HTTP 200.
+An OAuth-sourced xAI 401 becomes `token expired — let Hermes refresh it`; lith
+never refreshes or writes Hermes credentials.
 
 ---
 
@@ -725,21 +993,84 @@ main() -> int
 Resolves the brief from `--recipe` or from flags, renders the prompt, and
 prints either a summary or a call envelope. A non-null `aspect_note` or
 [`copy_note`](#copy_note) is printed to stderr as `warning: ...` and carried in
-the envelope. Both can fire on the same render.
+the envelope. [`request_limit_notes`](#request_limit_notes) are printed and
+carried as `limit_notes` too. All can fire on the same render.
 
 Precedence with `--recipe`: `n` and `model` come from the recipe, so `--n` and
 `--model` are silently ignored. `--seed` and `--out` are read from flags in
-both modes. When `--out` is absent, the output path is the extensionless stem
-`cwd/outputs/{family_key}_{slug(headline)}`, resolved at call time from
-`pathlib.Path.cwd()` — `lith-generate` has no image bytes, so it does not name
-a format. The envelope's `output_path` carries that stem; the summary prints it
-as `{stem}.<jpg|png|webp>`, matching `cli.run`. An explicit `--out` is used
+both modes. When `--out` is absent, recipe mode anchors the extensionless stem
+to [`default_output_dir(recipe)`](#default_output_dir); flag mode uses
+`cwd/outputs`. `lith-generate` has no image bytes, so it does not name a format.
+The envelope carries that stem; the summary prints it as
+`{stem}.<jpg|png|webp>`, matching `cli.run`. An explicit `--out` is used
 verbatim in both.
 
 Without `--recipe`, `--topic`, `--style`, and `--headline` are each required;
 a missing one triggers `parser.error`, which exits 2.
 
 **Returns** `0`. Argparse errors exit 2 without returning.
+
+---
+
+## `lith.cli.call`
+
+Entry point for `lith-call`. Flags:
+[README → `lith-call`](../README.md#lith-call).
+
+### `routing_decision`
+
+```python
+routing_decision(
+    recipe_model: str,
+    resolved_aspect: str,
+    *,
+    home=None,
+    environ=None,
+) -> dict[str, str | None]
+```
+
+Returns an inspectable Hermes-versus-`lith-call` decision. Hermes
+`image_generate` is selected only when its active model exactly equals the
+recipe model and the resolved aspect is `16:9`, `1:1`, or `9:16`; every other
+case routes to `lith-call` with the failed condition in `reason`. The Hermes
+model comes from `~/.hermes/config.yaml` `image_gen.model`, falling back to
+`FAL_IMAGE_MODEL`.
+
+### `request_preview`
+
+```python
+request_preview(request: ImageRequest) -> dict[str, Any]
+```
+
+Loads the selected adapter and returns its exact method, URL, redacted headers,
+request body, and unsupported fields. It performs no credential lookup and no
+network call. Provider preconditions still apply; in particular an over-limit
+MiniMax prompt fails here rather than printing a payload that cannot succeed.
+
+### `main`
+
+```python
+main() -> int
+```
+
+`--auth` reports all provider credential resolutions without requiring a
+recipe. Other modes load and render the recipe into an [`ImageRequest`](#imagerequest):
+
+| Mode | Effect |
+|---|---|
+| `--check` | Prints [`routing_decision`](#routing_decision); no credential or network access. |
+| `--dry-run` | Prints [`request_preview`](#request_preview); no credential or network access. |
+| live | Resolves the selected provider credential, calls [`generate`](#generate), and writes one candidate file per returned index. |
+
+Candidate names are `{family_key}_{slug(headline)}-c{index}{ext}` under `--out`
+or the recipe's default output directory. The extension is sniffed from the
+bytes; an unrecognized format or duplicate candidate index raises before any
+candidate is written. `--emit-json` returns candidate metadata and the complete
+`CallResult`; human output prints paths, reported fields, cost, and unsupported
+fields.
+
+**Returns** `0`. Argparse errors exit 2. Credential and provider exceptions
+propagate.
 
 ---
 
@@ -912,14 +1243,27 @@ tracebacks.
 | `ValueError` | `format_spec`, `render_prompt` | A brief section with no `heading` |
 | `ValueError` | `load_recipe` | Missing required brief keys |
 | `ValueError` | `parse_brief_response`, `expand_brief` | No decodable JSON object |
+| `ValueError` | `pixel_size` | Unknown/non-pixel model, invalid ratio, or unreachable size |
+| `ValueError` | `provider_for_model`, `generate` | Unknown model or wrong-provider credential |
 | `ValueError` | `download` | Bad scheme, bad redirect, oversize body, non-image bytes |
 | `ValueError` | `load_local` | Non-image bytes |
+| `MissingCredential` | `resolve_credential`, provider `generate` | All four credential tiers exhausted |
+| `CredentialFileError` | `resolve_credential` | Existing `.env` or `auth.json` unreadable/malformed |
+| `InvalidRequest` | provider adapters | Invalid request field or combination before/during a call |
+| `PromptTooLong` | MiniMax adapter | Prompt exceeds 1500 characters before network access |
+| `AuthError` | provider transport | Invalid/unauthorized credential |
+| `RateLimited` | provider transport | HTTP/provider rate limit |
+| `ContentRejected` | provider transport | Content or safety rejection |
+| `ProviderError` | provider transport/adapters | Other transport, response-shape, or provider error |
 | `FileNotFoundError` | `load_recipe`, `load_styles`, `load_local` | Missing input file |
 | `json.JSONDecodeError` | `load_recipe`, `load_styles` | Malformed JSON |
 | `subprocess.CalledProcessError` | `expand_brief` | `llm_cmd` exits nonzero |
 | `subprocess.TimeoutExpired` | `expand_brief` | Command exceeds `timeout` |
 
-No custom exception types are defined.
+The call-specific exceptions above are custom types. `AuthError`,
+`RateLimited`, `ContentRejected`, and `InvalidRequest` subclass `ProviderError`;
+`PromptTooLong` subclasses `InvalidRequest`. All carry a human-readable message,
+and provider errors may carry `status_code` and `payload`.
 
 ---
 
@@ -929,18 +1273,25 @@ No custom exception types are defined.
 |---|---|---|---|---|
 | `render_prompt` | — | — | — | yes |
 | `format_spec`, `format_layout` | — | — | — | yes |
+| aspect helpers, `pixel_size` | — | — | — | yes |
 | `slug`, `output_path` | — | — | — | yes |
 | `load_recipe` | read | — | — | yes |
 | `load_styles`, `get_family` | read | — | — | yes |
 | `parse_brief_response` | — | — | — | yes |
 | `expand_brief` | — | via `llm_cmd` | `llm_cmd` | no |
+| `resolve_credential` | read | — | — | yes for a fixed environment/filesystem |
+| provider `build_request` | — | — | — | yes |
+| `lith.call.generate` | read credentials | yes | — | no |
+| `request_preview` | — | — | — | yes |
+| `routing_decision` | config read | — | — | yes for fixed inputs/config |
 | `download` | write | yes | — | no |
 | `load_local` | read + write | — | — | yes |
 
 `render_prompt` is a pure function of its arguments plus the bundled
 `styles.json`, so the same recipe yields the same prompt across runs and
-machines. Randomness enters only through `expand_brief`'s model and whatever
-generates the image between the two console scripts.
+machines. Randomness enters through `expand_brief`'s model and provider image
+generation. Request building, aspect translation, and routing decisions remain
+deterministic.
 
 Output paths are derived, not unique: re-running a recipe overwrites the
 previous artifacts.
@@ -949,7 +1300,7 @@ previous artifacts.
 
 ## See also
 
-- [README → CLI reference](../README.md#cli-reference) — the two console scripts
+- [README → CLI reference](../README.md#cli-reference) — the three console scripts
 - [README → Recipe format](../README.md#recipe-format) — the JSON schema
-- [About the pipeline](explanation-pipeline.md) — why the library stops where it does
+- [About the pipeline](explanation-pipeline.md) — provider handoffs and deliberate omissions
 - [Tutorial: your first announcement image](tutorial-first-image.md) — the API in use

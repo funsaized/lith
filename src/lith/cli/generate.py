@@ -34,7 +34,26 @@ def main() -> int:
     parser.add_argument("--recipe", type=pathlib.Path)
     parser.add_argument("--topic")
     parser.add_argument("--style", choices=list("ABCDEFG"))
-    parser.add_argument("--aspect", choices=["16:9", "3:2", "4:3", "1:1", "3:4", "2:3", "9:16"])
+    parser.add_argument(
+        "--aspect",
+        choices=[
+            "1:1",
+            "3:4",
+            "4:3",
+            "9:16",
+            "16:9",
+            "2:3",
+            "3:2",
+            "9:19.5",
+            "19.5:9",
+            "9:20",
+            "20:9",
+            "1:2",
+            "2:1",
+            "auto",
+            "21:9",
+        ],
+    )
     parser.add_argument("--headline")
     parser.add_argument("--icon", default="gear")
     parser.add_argument("--n", type=int, default=4)
@@ -44,11 +63,12 @@ def main() -> int:
         default="grok-imagine-image-2.0",
         choices=[
             "grok-imagine-image-2.0",
-            "grok-imagine-image-quality",
-            "grok-imagine-image",
             "gpt-image-2",
+            "gpt-image-2-2026-04-21",
+            "gpt-image-1.5",
             "gpt-image-1",
-            "minimax-image",
+            "gpt-image-1-mini",
+            "image-01",
         ],
     )
     parser.add_argument("--out", type=pathlib.Path)

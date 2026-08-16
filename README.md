@@ -38,6 +38,7 @@ and [how to install it](#install-the-hermes-skill).
 
 ## Contents
 
+- [Why & use cases](#why--use-cases)
 - [Install](#install)
 - [Install the Hermes skill](#install-the-hermes-skill)
 - [CLI reference](#cli-reference) — [`lith-plate`](#lith-plate) · [`lith-press`](#lith-press) · [`lith-print`](#lith-print)
@@ -50,6 +51,51 @@ and [how to install it](#install-the-hermes-skill).
 - [Output paths](#output-paths)
 - [Tests](#tests)
 - [Status](#status)
+
+---
+
+## Why & use cases
+
+Plain prompting gets you an image. It does not reliably get you *that* image
+again, in your frame, saying the words you wrote.
+
+| Prompting a model directly | lith |
+|---|---|
+| The model paraphrases your headline | The poster copy is serialized into the prompt as a literal block the model is ordered to reproduce character for character |
+| "same style as last time," from memory | Seven fixed families in `styles.json` — template, negative prompt, palette, default aspect, all data |
+| You get whatever ratio the provider felt like | Aspect resolves explicit → content shape → family default → per-model clamp, and `lith-print --strict` measures the delivered file and exits nonzero when it drifted |
+| The prompt lives in chat scrollback | A JSON recipe re-renders byte-identically forever, to a deterministic output path |
+| One vendor's SDK and payload shape | One `ImageRequest` across xAI, OpenAI and MiniMax, with the exact body inspectable before you spend |
+
+That last row is not hypothetical. Two sweeps of the 34-recipe testbed once ran
+through a bridge that took `prompt` and silently dropped `model`, `n`, and
+`aspect_ratio`. Every image came back, every frame was wrong, and nothing in
+the returned bytes said so —
+[the full story](docs/explanation-pipeline.md#why-the-driver-now-makes-the-call).
+
+**Ways to leverage it:**
+
+- **From an agent or harness.** Three commands, stable exit codes, and
+  `--emit-json` on both planning steps. `lith-press --check` verifies the route
+  before spending;
+  `lith-print --strict` turns a silently substituted ratio into a nonzero exit
+  a sweep script can actually catch.
+- **From a Hermes session.** [`skills/lith/SKILL.md`](skills/lith/SKILL.md)
+  ships in the repo — the session picks a family, generates, and hands you
+  candidates without improvising a prompt.
+- **From Python.** Eight root-level functions plus the typed `lith.call` API,
+  for wiring image generation into an existing app. The prompt-side modules
+  import no network code at all, so you can render and diff prompts in a unit
+  test.
+- **As a prompt compiler for a provider lith doesn't support.**
+  `lith-plate --recipe R --press --emit-json` gives you the envelope; take it to
+  any API you like and skip `lith-press` entirely.
+- **In batch and in CI.** Recipes are files, so a content calendar is a
+  directory. Every preview mode — `--press`, `--dry-run`, `--check`, `--auth`,
+  and `lith-print` with no image — is offline and free.
+
+Not what you want if you need one-off concept art, or a tool that picks the
+best candidate and posts it for you. Selection and publication stay yours.
 
 ---
 

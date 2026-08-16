@@ -27,14 +27,14 @@ def test_dry_mode_prints_plan():
 
 
 def test_download_rejects_non_http_schemes():
-    from lith.cli.run import download
+    from lith.imagebytes import download
 
     with pytest.raises(ValueError, match="refusing to fetch scheme"):
         download("file:///etc/passwd", Path("/tmp/x.jpg"))
 
 
 def test_download_rejects_oversized_response(tmp_path):
-    from lith.cli.run import download
+    from lith.imagebytes import download
 
     fake = MagicMock()
     fake.url = "http://example.com/huge.jpg"
@@ -54,7 +54,7 @@ def test_download_rejects_oversized_response(tmp_path):
 
 
 def test_download_rejects_redirect_to_disallowed_scheme(tmp_path):
-    from lith.cli.run import download
+    from lith.imagebytes import download
 
     fake = MagicMock()
     fake.url = "ftp://example.com/image.jpg"
@@ -83,7 +83,7 @@ def test_publishes_under_the_recipe_name(tmp_path):
 
 
 def test_image_size_reads_jpeg_and_png_headers():
-    from lith.cli.run import _image_size
+    from lith.imagebytes import _image_size
 
     png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8 + (1024).to_bytes(4, "big") + (1536).to_bytes(4, "big")
     assert _image_size(png) == (1024, 1536)

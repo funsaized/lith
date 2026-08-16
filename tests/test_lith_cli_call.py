@@ -115,6 +115,24 @@ def test_dry_run_prints_exact_xai_request_without_auth_or_network(
     assert "must-never-appear" not in output
 
 
+def test_dry_run_prompt_too_long_is_one_error_line_without_traceback(
+    monkeypatch, capsys
+):
+    path = (
+        pathlib.Path(__file__).resolve().parents[1]
+        / "recipes/integration/23-aspect-unlisted.json"
+    )
+    assert _main(monkeypatch, "--dry-run", "--recipe", path) == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Traceback" not in captured.err
+    assert captured.err.splitlines() == [
+        "MiniMax prompt length is 2660 characters; cap is 1500. See backlog §3.1: "
+        "lith testbed prompts require compact templates before MiniMax can render them"
+    ]
+
+
 def test_auth_reports_every_provider_tier_source_and_fingerprint_without_secrets(
     tmp_path, monkeypatch, capsys
 ):

@@ -16,7 +16,7 @@ from lith import load_recipe, output_path, render_prompt
 from lith.call import CallResult, ImageRequest, generate
 from lith.call.capability import provider_for_model
 from lith.call.creds import MissingCredential, PROVIDERS, resolve_credential
-from lith.call.http import REDACTED
+from lith.call.http import REDACTED, ProviderError
 from lith.imagebytes import image_ext
 from lith.paths import default_output_dir
 
@@ -276,10 +276,7 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main() -> int:
-    parser = _parser()
-    args = parser.parse_args()
-
+def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
     if args.auth:
         _print_auth(_auth_report(args.recipe), emit_json=args.emit_json)
         return 0
@@ -321,6 +318,16 @@ def main() -> int:
         for field, reason in result.unsupported.items():
             print(f"[unsupported] {field}: {reason}")
     return 0
+
+
+def main() -> int:
+    parser = _parser()
+    args = parser.parse_args()
+    try:
+        return _run(parser, args)
+    except ProviderError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

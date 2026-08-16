@@ -707,6 +707,7 @@ uv run pytest -m live_provider -s
 | [About output styles](docs/explanation-output-styles.md) | Explanation | Choosing a family, and how one spec renders seven ways |
 | [About the design language](docs/explanation-design-language.md) | Explanation | The palette, typography and composition rules underneath |
 | [`skills/lith/SKILL.md`](skills/lith/SKILL.md) | Agent instructions | Checking what a Hermes session will do on your behalf |
+| [Contributing](CONTRIBUTING.md) | How-to | Changing the CLI, adding a provider, or authoring a style |
 | This README | Reference | Looking up a flag, a field, or a signature |
 
 MIT licensed. See [LICENSE](LICENSE).

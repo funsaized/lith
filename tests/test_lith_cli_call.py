@@ -87,6 +87,15 @@ def test_dry_run_prints_exact_xai_request_without_auth_or_network(
     output = capsys.readouterr().out
     preview = json.loads(output)
     rendered = render_prompt(load_recipe(path))
+    # Advisory notes ride alongside the request; lift them out so the request
+    # shape below stays an exact-equality assertion. This fixture brief has no
+    # sections, so copy_note must be among them.
+    notes = {
+        key: preview.pop(key)
+        for key in ("aspect_note", "copy_note", "limit_notes")
+        if key in preview
+    }
+    assert "letter template wording" in notes["copy_note"]
     assert preview == {
         "provider": "xai",
         "method": "POST",
@@ -135,11 +144,18 @@ def test_dry_run_prompt_too_long_is_one_error_line_without_traceback(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert "Traceback" not in captured.err
-    assert captured.err.splitlines() == [
+
+    lines = captured.err.splitlines()
+    # The failure is the last line and stands alone. Anything before it is an
+    # advisory warning — this recipe asks 4:5, which MiniMax clamps to 3:4 —
+    # and every one of those must be prefixed so the error stays unambiguous.
+    assert lines[-1] == (
         f"MiniMax prompt length is {expected} characters; cap is 1500. See "
         "backlog §3.1: lith testbed prompts require compact templates before "
         "MiniMax can render them"
-    ]
+    )
+    assert all(line.startswith("warning: ") for line in lines[:-1])
+    assert any("cannot produce 4:5" in line for line in lines[:-1])
 
 
 def test_auth_reports_every_provider_tier_source_and_fingerprint_without_secrets(
@@ -349,3 +365,50 @@ def test_pyproject_registers_lith_call_without_runtime_dependencies():
     assert 'lith-call = "lith.cli.call:main"' in text
     project_section = text.split("[project]", 1)[1].split("[project.optional-dependencies]", 1)[0]
     assert "dependencies" not in project_section
+
+
+BED = pathlib.Path(__file__).resolve().parents[1] / "recipes" / "integration"
+
+
+@pytest.mark.parametrize(
+    "recipe,field,fragment",
+    [
+        ("22-aspect-clamped", "aspect_note", "cannot produce 16:9"),
+        ("20-aspect-family", "copy_note", "letter template wording"),
+    ],
+)
+def test_check_surfaces_render_notes_on_both_channels(
+    recipe, field, fragment, monkeypatch, capsys
+):
+    """lith-call must not swallow what lith-generate reports.
+
+    A clamped ratio and a too-thin copy block are both substitutions the
+    caller has to know about, and lith-call is the command that spends the
+    money. It reported neither until this test existed: --emit-json omitted
+    the field and stderr was zero bytes.
+    """
+    path = BED / f"{recipe}.json"
+    assert _main(monkeypatch, "--check", "--recipe", path, "--emit-json") == 0
+
+    captured = capsys.readouterr()
+    assert fragment in captured.err, "note missing from stderr"
+    assert captured.err.startswith("warning: ")
+    payload = json.loads(captured.out)
+    assert fragment in payload[field], "note missing from --emit-json"
+
+
+def test_dry_run_carries_render_notes_too(monkeypatch, capsys):
+    path = BED / "22-aspect-clamped.json"
+    assert _main(monkeypatch, "--dry-run", "--recipe", path, "--emit-json") == 0
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert "cannot produce 16:9" in payload["aspect_note"]
+    # The plan a caller inspects must show the substituted size, not 16:9.
+    assert payload["body"]["size"] == "1536x1024"
+
+
+def test_render_notes_drops_empty_values():
+    from lith.cli.call import render_notes
+
+    assert render_notes({"aspect_note": None, "copy_note": "", "limit_notes": []}) == {}
+    assert render_notes({"aspect_note": "x"}) == {"aspect_note": "x"}

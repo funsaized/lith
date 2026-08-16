@@ -276,6 +276,28 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def render_notes(rendered: dict[str, Any]) -> dict[str, Any]:
+    """Collect the advisory notes a render produced, dropping the empty ones.
+
+    ``lith-generate`` surfaces these; ``lith-call`` did not, so the command
+    that actually spends money was the one that stayed silent about a clamped
+    ratio or a copy block too thin to hold the model. A caller reading only
+    this command's output must still learn what was substituted.
+    """
+    notes: dict[str, Any] = {}
+    for field in ("aspect_note", "copy_note", "limit_notes"):
+        value = rendered.get(field)
+        if value:
+            notes[field] = value
+    return notes
+
+
+def _warn_notes(notes: dict[str, Any]) -> None:
+    for field, value in notes.items():
+        for line in value if isinstance(value, list) else [value]:
+            print(f"warning: {line}", file=sys.stderr, flush=True)
+
+
 def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
     if args.auth:
         _print_auth(_auth_report(args.recipe), emit_json=args.emit_json)
@@ -284,16 +306,21 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
         parser.error("--recipe is required unless --auth is used")
 
     recipe, rendered, request = _request_from_recipe(args)
+    # Emitted before any branch: --check and --dry-run are how a caller
+    # inspects the plan, and a substitution is part of the plan.
+    notes = render_notes(rendered)
+    _warn_notes(notes)
+
     if args.check:
         decision = routing_decision(recipe.model, rendered["aspect_ratio"])
         if args.emit_json:
-            print(json.dumps(decision, indent=2))
+            print(json.dumps({**decision, **notes}, indent=2))
         else:
             print(f"route={decision['route']}")
             print(f"reason={decision['reason']}")
         return 0
     if args.dry_run:
-        print(json.dumps(request_preview(request), indent=2))
+        print(json.dumps({**request_preview(request), **notes}, indent=2))
         return 0
 
     provider = provider_for_model(request.model)
@@ -305,7 +332,7 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
         family_key=recipe.family_key,
         headline=recipe.brief["headline"],
     )
-    metadata = _result_metadata(result, paths)
+    metadata = {**_result_metadata(result, paths), **notes}
     if args.emit_json:
         print(json.dumps(metadata, indent=2))
     else:

@@ -1019,6 +1019,28 @@ a missing one triggers `parser.error`, which exits 2.
 Entry point for `lith-call`. Flags:
 [README → `lith-call`](../README.md#lith-call).
 
+### `render_notes`
+
+```python
+render_notes(rendered: dict[str, Any]) -> dict[str, Any]
+```
+
+Collects `aspect_note`, `copy_note` and `limit_notes` from a
+[`render_prompt`](#render_prompt) result, dropping any that are `None`, `""` or
+empty. `_run` calls it once, before branching, so `--check` and `--dry-run`
+report substitutions too — a caller inspecting the plan is exactly the caller
+who needs to know the plan was altered.
+
+Every collected note is printed to stderr as `warning: …` (list-valued
+`limit_notes` one line per entry) **and** merged into whichever JSON the command
+emits: the routing decision under `--check`, the request preview under
+`--dry-run`, the result metadata otherwise.
+
+This exists because it did not. `lith-generate` surfaced all three and
+`lith-call` surfaced none, so the command that spends money was the silent one:
+a recipe clamped from `16:9` to `3:2` produced a correct image, a zero-byte
+stderr, and a JSON payload with no mention of the substitution.
+
 ### `routing_decision`
 
 ```python

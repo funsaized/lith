@@ -157,6 +157,10 @@ labels it names appear as text.
   recipe's model can produce, and prints a warning on stderr when it substitutes.
 - Let the image model render the copy the spec supplies. Fix a wrong line by
   correcting the brief and re-generating, never by editing the image.
+- Never pin a brief with sections to `gpt-image-1` or `gpt-image-1-mini`. Both
+  produce exact frames and then lose whole sections, desync headings from their
+  bodies, and duplicate panels. Use `gpt-image-2`, `gpt-image-1.5`, or the Grok
+  line for anything denser than a title and subtitle.
 - Do not publish, post, or upload unless the user separately authorizes it.
 
 ## Pitfalls

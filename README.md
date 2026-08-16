@@ -543,8 +543,35 @@ Exactly one of `ratio_enum`, `pixel_sizes`, or `pixel_range` is populated;
 `pixel_size(model, aspect)` translates a ratio to `WIDTHxHEIGHT`: the 1.x line
 uses its fixed lookup, while `gpt-image-2` searches the constrained range.
 
+### Not every listed model can render a dense spec
+
+The table above is about *frames*. It says nothing about whether a model can
+letter forty lines of authored copy correctly, and they differ sharply. Measured
+across the integration testbed on 2026-08-16, one candidate per recipe:
+
+| Model | Dense spec copy |
+|---|---|
+| `grok-imagine-image-2.0`, `grok-imagine-image-quality`, `grok-imagine-image` | reliable — 16 of 17 rows letter-perfect |
+| `gpt-image-2`, `gpt-image-2-2026-04-21` | reliable |
+| `gpt-image-1.5` | reliable |
+| **`gpt-image-1`, `gpt-image-1-mini`** | **not suitable** |
+
+The 1.0 tier fails structurally rather than cosmetically: whole sections vanish,
+headings desync from the bodies beneath them, and panels duplicate. One row
+rendered `01 - THE MESH` above section 01's content and dropped section 02
+entirely; another printed `MagicONS` for `MagicDNS` and lost `04 - INGRESS`.
+The frames were exact and `lith-run --strict` exited 0 for every one of them —
+this is a copy-fidelity property, and no exit code detects it.
+
+Use `gpt-image-1` and `gpt-image-1-mini` for a title-and-subtitle poster, or not
+at all. For anything with sections, prefer `gpt-image-2`, `gpt-image-1.5`, or
+the Grok line.
+
 When a clamp happens, `lith-generate` prints `warning: ...` on stderr and sets
 `aspect_note` in the envelope; `lith-run` prints it as a `[warn]` line.
+`lith-call` prints the same warnings on stderr and carries `aspect_note`,
+`copy_note` and `limit_notes` in its `--emit-json` payload, including under
+`--check` and `--dry-run`.
 `lith-run` also compares the *published* image's real dimensions against the
 request and warns when they differ by more than 2%, which catches a provider
 that ignored the field entirely.

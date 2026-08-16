@@ -1,0 +1,37 @@
+{
+  "name": "friday-04-split-openai",
+  "description": "Split layout, patent-diagram family, OpenAI gpt-image-1.5. Tuesday deploy versus Friday deploy, facing off across one rule.",
+  "style": "C",
+  "model": "gpt-image-1.5",
+  "n": 2,
+  "brief": {
+    "topic": "A comparative study of the Tuesday deploy and the Friday deploy",
+    "headline": "COMPARATIVE DEPLOY STUDY",
+    "icon": "gear",
+    "aspect": "2:3",
+    "volume": "IV",
+    "subtitle": "FIG. 1 - TWO IDENTICAL CHANGES, TWO OUTCOMES",
+    "layout": "split",
+    "diagram": "Two identical pipelines run side by side, labelled TUESDAY and FRIDAY, both ending at a box labelled PROD",
+    "diagram_position": "above",
+    "sections": [
+      {
+        "heading": "SPECIMEN A - TUESDAY",
+        "lines": [
+          "Rollback observed within four minutes",
+          "Author present and caffeinated",
+          "Three further days of daylight remain"
+        ]
+      },
+      {
+        "heading": "SPECIMEN B - FRIDAY",
+        "lines": [
+          "Rollback observed within nine hours",
+          "Author unreachable, phone face down",
+          "Daylight remaining: none, structurally"
+        ]
+      }
+    ],
+    "footer": "PATENT PENDING - APPARATUS FOR NOT DOING THAT"
+  }
+}

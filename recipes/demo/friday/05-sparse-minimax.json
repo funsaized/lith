@@ -1,0 +1,14 @@
+{
+  "name": "friday-05-sparse-minimax",
+  "description": "Deliberately sparse status-board, MiniMax image-01. Family G is the only template that fits the provider's 1500-character prompt cap; lith-plate reports the overflow as a limit_note before any call is made.",
+  "style": "G",
+  "model": "image-01",
+  "n": 2,
+  "brief": {
+    "topic": "A deploy freeze status board for the last working day of the week",
+    "headline": "DEPLOY FREEZE ACTIVE",
+    "icon": "padlock",
+    "aspect": "16:9",
+    "footer": "RESUMES TUESDAY 09:00"
+  }
+}

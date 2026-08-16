@@ -1,0 +1,53 @@
+{
+  "name": "friday-02-timeline-openai",
+  "description": "Timeline layout, role-log dashboard, OpenAI gpt-image-2. One Friday deploy, hour by hour.",
+  "style": "G",
+  "model": "gpt-image-2",
+  "n": 2,
+  "brief": {
+    "topic": "The hour-by-hour anatomy of a Friday afternoon deploy going wrong",
+    "headline": "ANATOMY OF A FRIDAY DEPLOY",
+    "icon": "hourglass",
+    "aspect": "2:3",
+    "subtitle": "INCIDENT TIMELINE - ONE ORDINARY AFTERNOON",
+    "layout": "timeline",
+    "sections": [
+      {
+        "heading": "16:10 - GREEN BUILD",
+        "lines": [
+          "All checks passed",
+          "It is a small change"
+        ]
+      },
+      {
+        "heading": "16:40 - SHIPPED",
+        "lines": [
+          "Metrics look flat and calm",
+          "Someone says have a good weekend"
+        ]
+      },
+      {
+        "heading": "18:15 - FIRST PAGE",
+        "lines": [
+          "Error rate is up but only slightly",
+          "Probably unrelated"
+        ]
+      },
+      {
+        "heading": "23:50 - RELATED",
+        "lines": [
+          "It is very much related",
+          "The rollback needs a migration"
+        ]
+      },
+      {
+        "heading": "02:30 - THE GROUP CHAT",
+        "lines": [
+          "Six people awake, none of them rested",
+          "Nobody remembers the flag default"
+        ]
+      }
+    ],
+    "footer": "TOTAL CHANGE: 14 LINES"
+  }
+}

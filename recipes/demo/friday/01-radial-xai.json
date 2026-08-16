@@ -1,0 +1,48 @@
+{
+  "name": "friday-01-radial-xai",
+  "description": "Radial layout, sci-fi brutalist, xAI. Four reasons ringed around a central pager.",
+  "style": "B",
+  "model": "grok-imagine-image-2.0",
+  "n": 2,
+  "brief": {
+    "topic": "Why shipping to production on a Friday afternoon is a bad idea",
+    "headline": "NO DEPLOYS ON FRIDAYS",
+    "icon": "pager",
+    "aspect": "1:1",
+    "subtitle": "A FIELD GUIDE TO SURVIVING THE WEEKEND",
+    "layout": "radial",
+    "diagram_position": "center",
+    "diagram": "A pager at the center connects by leader lines to four labels: ROLLBACK, ONCALL, TRAFFIC and MEMORY",
+    "sections": [
+      {
+        "heading": "01 - NOBODY TO ROLL BACK",
+        "lines": [
+          "The person who wrote it is on a train",
+          "The person who reviewed it is at a wedding"
+        ]
+      },
+      {
+        "heading": "02 - THE PAGER IS THE PLAN",
+        "lines": [
+          "Every unstaffed hour is a staffed hour later",
+          "Saturday 2am is not a deploy window"
+        ]
+      },
+      {
+        "heading": "03 - TRAFFIC LIES ON FRIDAY",
+        "lines": [
+          "Weekend load looks nothing like Friday load",
+          "The bug waits politely until Monday"
+        ]
+      },
+      {
+        "heading": "04 - MONDAY YOU IS A STRANGER",
+        "lines": [
+          "Two days erases why you touched that file",
+          "The commit message will not save you"
+        ]
+      }
+    ],
+    "footer": "SHIP TUESDAY. SLEEP SATURDAY."
+  }
+}

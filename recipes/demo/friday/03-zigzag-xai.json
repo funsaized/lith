@@ -1,0 +1,34 @@
+{
+  "name": "friday-03-zigzag-xai",
+  "description": "Zigzag layout, sticker whisper-joke, xAI. The excuses, alternating and slightly crooked.",
+  "style": "A",
+  "model": "grok-imagine-image-2.0",
+  "n": 2,
+  "brief": {
+    "topic": "The things engineers tell themselves right before a Friday deploy",
+    "headline": "IT IS A SMALL CHANGE",
+    "icon": "rocket",
+    "aspect": "16:9",
+    "subtitle": "FAMOUS LAST WORDS, COLLECTED",
+    "layout": "zigzag",
+    "sections": [
+      {
+        "heading": "IT IS ONE LINE",
+        "lines": ["It is one line and a config default"]
+      },
+      {
+        "heading": "IT IS BEHIND A FLAG",
+        "lines": ["The flag is read at startup"]
+      },
+      {
+        "heading": "I WILL WATCH IT",
+        "lines": ["Watching it until 5:04pm"]
+      },
+      {
+        "heading": "WE CAN ROLL BACK",
+        "lines": ["We can roll back the code, not the data"]
+      }
+    ],
+    "footer": "MONDAY IS RIGHT THERE"
+  }
+}

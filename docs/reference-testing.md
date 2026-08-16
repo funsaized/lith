@@ -36,7 +36,7 @@ The default run requires no credentials and makes no network request.
 
 ```console
 $ uv run pytest -q
-385 passed, 3 skipped
+386 passed, 3 skipped
 ```
 
 The three skips are the live canaries. Their skip reason names the variable that
@@ -49,23 +49,26 @@ Declared in `pyproject.toml` under `[tool.pytest.ini_options]`.
 | Marker | Meaning |
 |---|---|
 | `integration` | Deterministic cross-module integration coverage. |
-| `live_provider` | Opt-in test that contacts a real provider and spends money. Applied to every test in `test_live_providers.py` via `pytestmark`. |
+| `live_provider` | Opt-in test that contacts a real provider and spends money. Applied to each of the three provider canaries. |
 | `live_xai` | Opt-in xAI provider canary. |
 | `live_openai` | Opt-in OpenAI provider canary. |
 | `live_minimax` | Opt-in MiniMax provider canary. |
 
 `live_xai`, `live_openai`, and `live_minimax` are applied in addition to
 `live_provider`, never instead of it. Selecting `-m live_provider` selects all
-three.
+three. The artifact-sink unit test in the same module is unmarked and never
+contacts a provider.
 
 ## Environment variables
 
 | Variable | Read by | Effect |
 |---|---|---|
 | `LITH_RUN_LIVE_PROVIDER_CANARIES` | `tests/test_live_providers.py` | Live canaries run only when set to exactly `"1"`. Any other value, or absence, skips them. |
+| `LITH_LIVE_OUTPUT_DIR` | `tests/test_live_providers.py` | Optional directory in which validated live candidate images are retained. Without it, candidate bytes stay in memory only. |
 | `COVERAGE_FILE` | `tests/check_capability_coverage.py` | Set per capability to a temporary path so the three gates never share coverage data. Not intended to be set by the caller. |
 
-No other environment variable affects test selection or behaviour.
+Provider credential variables still participate in ordinary credential
+resolution, but do not affect test selection.
 
 ```console
 $ uv run pytest tests/test_live_providers.py -rs -q
@@ -161,6 +164,22 @@ percent of the requested ratio, and that `raw` is a non-empty dict and
 Credentials resolve through the ordinary four-tier chain with
 `recipe_path=LIVE_RECIPE`; the canaries do not read credentials any differently
 from production code.
+
+### Retaining generated images
+
+By default, validated candidate bytes stay in memory and disappear when pytest
+exits. Set `LITH_LIVE_OUTPUT_DIR` to retain them. Add `-s` to show each absolute
+path as it is written:
+
+```bash
+LITH_LIVE_OUTPUT_DIR=outputs/canaries \
+LITH_RUN_LIVE_PROVIDER_CANARIES=1 \
+uv run pytest -m live_provider -s
+```
+
+The directory is created when needed. Filenames are deterministic:
+`{provider}_{model}_canary-c{index}.<jpg|png|webp>`. A later run of the same
+provider/model overwrites its previous canary artifact.
 
 ## Fixtures
 

@@ -652,7 +652,7 @@ uv run pytest
 ```
 
 ```
-385 passed, 3 skipped
+386 passed, 3 skipped
 ```
 
 No credentials, no network. The three skips are live provider canaries, which
@@ -661,6 +661,15 @@ enable them.
 
 Full details, including the markers, the live canaries, and the branch-aware
 capability gates: [Testing reference](docs/reference-testing.md).
+
+To retain live canary images for viewing, set an output directory and disable
+pytest capture so each saved path is printed:
+
+```bash
+LITH_LIVE_OUTPUT_DIR=outputs/canaries \
+LITH_RUN_LIVE_PROVIDER_CANARIES=1 \
+uv run pytest -m live_provider -s
+```
 
 ---
 

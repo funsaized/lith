@@ -90,6 +90,76 @@ def test_exact_request_body_and_parsed_call_result():
     assert result.unsupported == {}
 
 
+def test_public_storage_uses_url_response_and_fetches_candidate_bytes():
+    image = png(1280, 720)
+    payload = {
+        "data": [
+            {
+                "url": "https://files-cdn.x.ai/lith-p3-3.png",
+                "mime_type": "image/png",
+                "file_output": {
+                    "file_id": "file-fixture",
+                    "public_url": "https://files-cdn.x.ai/stored/lith-p3-3.png",
+                },
+            }
+        ]
+    }
+    request = ImageRequest(
+        prompt="store this byte-for-byte",
+        model="grok-imagine-image-2.0",
+        aspect="16:9",
+    )
+    storage = {
+        "filename": "lith-p3-3.png",
+        "expires_after": 2_592_000,
+        "public_url": True,
+    }
+
+    with patch("lith.call.xai.post_json", return_value=payload) as post, patch(
+        "lith.call.xai.fetch_image", return_value=image
+    ) as fetch:
+        result = generate(
+            request, credential=credential(), storage_options=storage
+        )
+
+    assert post.call_args.args[1] == {
+        "model": "grok-imagine-image-2.0",
+        "prompt": "store this byte-for-byte",
+        "n": 1,
+        "aspect_ratio": "16:9",
+        "response_format": "url",
+        "storage_options": storage,
+    }
+    fetch.assert_called_once_with(
+        "https://files-cdn.x.ai/stored/lith-p3-3.png"
+    )
+    assert result.candidates[0].data == image
+    assert result.candidates[0].dimensions == (1280, 720)
+    assert result.raw is payload
+
+
+@pytest.mark.parametrize(
+    ("storage", "message"),
+    [
+        ({}, "filename is required"),
+        ({"filename": ""}, "filename is required"),
+        ({"filename": "x.png", "expires_after": True}, "expires_after"),
+        ({"filename": "x.png", "expires_after": 0}, "expires_after"),
+        ({"filename": "x.png", "expires_after": 2_592_001}, "expires_after"),
+        ({"filename": "x.png", "public_url": "yes"}, "public_url"),
+        ({"filename": "x.png", "surprise": 1}, "unsupported fields: surprise"),
+    ],
+)
+def test_storage_options_are_validated_before_auth(storage, message):
+    request = ImageRequest(
+        prompt="draw", model="grok-imagine-image-2.0", aspect="1:1"
+    )
+    with patch("lith.call.xai.resolve_credential") as resolve:
+        with pytest.raises(InvalidRequest, match=message):
+            generate(request, storage_options=storage)
+    resolve.assert_not_called()
+
+
 def test_unsupported_fields_are_reported_without_touching_prompt():
     prompt = "POSITIVE ONLY\nDo not mutate this exact string."
     request = ImageRequest(
@@ -226,7 +296,7 @@ def test_api_key_auth_error_is_not_rewritten():
     [
         ({}, "no data list"),
         ({"data": ["not-an-object"]}, "candidate 0 is not an object"),
-        ({"data": [{}]}, "candidate 0 has no b64_json"),
+        ({"data": [{}]}, "candidate 0 has neither b64_json nor url"),
         ({"data": [{"b64_json": "%%%"}]}, "candidate 0 has invalid b64_json"),
     ],
 )

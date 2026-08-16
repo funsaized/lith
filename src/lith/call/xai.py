@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import base64
 import binascii
+from collections.abc import Mapping
 from typing import Any
 
-from lith.imagebytes import _image_ext, _image_size
+from lith.imagebytes import _image_ext, _image_size, fetch_image
 
 from . import CallResult, Candidate, ImageRequest
 from .creds import Credential, resolve_credential
@@ -22,7 +23,36 @@ _MIME_BY_EXTENSION = {
 }
 
 
-def build_request(request: ImageRequest) -> dict[str, Any]:
+def _storage_options(options: Mapping[str, Any]) -> dict[str, Any]:
+    allowed = {"filename", "expires_after", "public_url"}
+    unknown = sorted(set(options) - allowed)
+    if unknown:
+        raise InvalidRequest(
+            f"xAI storage_options contains unsupported fields: {', '.join(unknown)}"
+        )
+    filename = options.get("filename")
+    if not isinstance(filename, str) or not filename.strip():
+        raise InvalidRequest("xAI storage_options.filename is required")
+    expires_after = options.get("expires_after")
+    if expires_after is not None and (
+        isinstance(expires_after, bool)
+        or not isinstance(expires_after, int)
+        or not 1 <= expires_after <= 2_592_000
+    ):
+        raise InvalidRequest(
+            "xAI storage_options.expires_after must be an integer from 1 through 2592000"
+        )
+    public_url = options.get("public_url")
+    if public_url is not None and not isinstance(public_url, bool):
+        raise InvalidRequest("xAI storage_options.public_url must be a boolean")
+    return dict(options)
+
+
+def build_request(
+    request: ImageRequest,
+    *,
+    storage_options: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     """Translate a uniform request into xAI's exact JSON request body."""
     if isinstance(request.n, bool) or not isinstance(request.n, int) or not 1 <= request.n <= 10:
         raise InvalidRequest(f"xAI n must be an integer from 1 through 10; got {request.n!r}")
@@ -40,10 +70,12 @@ def build_request(request: ImageRequest) -> dict[str, Any]:
         "prompt": request.prompt,
         "n": request.n,
         "aspect_ratio": request.aspect,
-        "response_format": "b64_json",
+        "response_format": "url" if storage_options is not None else "b64_json",
     }
     if request.resolution is not None:
         body["resolution"] = request.resolution
+    if storage_options is not None:
+        body["storage_options"] = _storage_options(storage_options)
     return body
 
 
@@ -69,6 +101,16 @@ def _mime_type(item: dict[str, Any], data: bytes) -> str:
     return _MIME_BY_EXTENSION.get(_image_ext(data), "application/octet-stream")
 
 
+def _candidate_url(item: dict[str, Any]) -> str | None:
+    file_output = item.get("file_output")
+    if isinstance(file_output, dict):
+        public_url = file_output.get("public_url")
+        if isinstance(public_url, str):
+            return public_url
+    url = item.get("url")
+    return url if isinstance(url, str) else None
+
+
 def _candidates(payload: dict[str, Any]) -> list[Candidate]:
     items = payload.get("data")
     if not isinstance(items, list):
@@ -81,16 +123,26 @@ def _candidates(payload: dict[str, Any]) -> list[Candidate]:
                 f"xAI candidate {index} is not an object", payload=payload
             )
         encoded = item.get("b64_json")
-        if not isinstance(encoded, str):
+        url = _candidate_url(item)
+        if not isinstance(encoded, str) and url is None:
             raise ProviderError(
-                f"xAI candidate {index} has no b64_json", payload=payload
+                f"xAI candidate {index} has neither b64_json nor url", payload=payload
             )
-        try:
-            data = base64.b64decode(encoded, validate=True)
-        except (binascii.Error, ValueError) as exc:
-            raise ProviderError(
-                f"xAI candidate {index} has invalid b64_json", payload=payload
-            ) from exc
+        if isinstance(encoded, str):
+            try:
+                data = base64.b64decode(encoded, validate=True)
+            except (binascii.Error, ValueError) as exc:
+                raise ProviderError(
+                    f"xAI candidate {index} has invalid b64_json", payload=payload
+                ) from exc
+        else:
+            try:
+                data = fetch_image(url)
+            except (OSError, ValueError) as exc:
+                raise ProviderError(
+                    f"xAI candidate {index} URL could not be fetched: {exc}",
+                    payload=payload,
+                ) from exc
         candidates.append(
             Candidate(
                 index=index,
@@ -125,10 +177,13 @@ def _cost(payload: dict[str, Any]) -> str | None:
 
 
 def generate(
-    request: ImageRequest, *, credential: Credential | None = None
+    request: ImageRequest,
+    *,
+    credential: Credential | None = None,
+    storage_options: Mapping[str, Any] | None = None,
 ) -> CallResult:
     """Generate xAI candidates without altering the authored prompt."""
-    body = build_request(request)
+    body = build_request(request, storage_options=storage_options)
     resolved = credential or resolve_credential("xai")
     if resolved.provider != "xai":
         raise ValueError(

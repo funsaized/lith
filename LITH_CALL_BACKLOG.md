@@ -733,6 +733,14 @@ nearest listed neighbour — the frame the layout was actually composed for.
 Needs: `P1-6` · Env: `KEY:xai`
 Stable public URLs instead of expiring ones.
 
+Measured 2026-08-16: one request with `filename`, `public_url: true`, and the
+maximum `expires_after: 2592000` returned one 832×1248 candidate,
+`storage_error: null`, and a `file_output.public_url` on `files-cdn.x.ai` with
+no query string. The ordinary `data[].url` remained on the temporary
+`imgen.x.ai` host. The adapter therefore prefers and fetches the stored public
+URL while preserving both values in `CallResult.raw`. The public object lasts
+for the requested 30 days; the provider does not offer a permanent lifetime.
+
 **`P3-4` — OpenAI extras**
 Needs: `P2-3` · Env: `KEY:openai`
 `quality` sweep; `background: transparent` for overlay use; `output_format:

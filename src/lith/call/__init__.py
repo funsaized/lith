@@ -40,7 +40,7 @@ class CallResult:
     raw: dict
 
 
-def generate(request: ImageRequest, *, credential=None) -> CallResult:
+def generate(request: ImageRequest, *, credential=None, **provider_options) -> CallResult:
     """Dispatch ``request`` to its model's provider adapter.
 
     Provider modules are imported lazily so importing :mod:`lith.call` remains
@@ -48,4 +48,6 @@ def generate(request: ImageRequest, *, credential=None) -> CallResult:
     """
     provider = provider_for_model(request.model)
     adapter = import_module(f"lith.call.{provider}")
-    return adapter.generate(request, credential=credential)
+    return adapter.generate(
+        request, credential=credential, **provider_options
+    )

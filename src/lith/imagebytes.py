@@ -57,7 +57,7 @@ def _image_ext(body: bytes) -> str | None:
     return None
 
 
-def download(url: str, dst: pathlib.Path) -> pathlib.Path:
+def fetch_image(url: str) -> bytes:
     """Fetch an HTTP(S) model-generated image with size and format guards."""
     parsed = urllib.parse.urlsplit(url)
     if not parsed.scheme:
@@ -91,6 +91,13 @@ def download(url: str, dst: pathlib.Path) -> pathlib.Path:
 
     if not _looks_like_image(body):
         raise ValueError("downloaded bytes do not look like an image (magic mismatch)")
+
+    return body
+
+
+def download(url: str, dst: pathlib.Path) -> pathlib.Path:
+    """Fetch an image into ``dst`` after validating its URL, size, and bytes."""
+    body = fetch_image(url)
 
     dst.parent.mkdir(parents=True, exist_ok=True)
     dst.write_bytes(body)

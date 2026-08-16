@@ -802,6 +802,14 @@ are viable), or accepts and ignores them, in which case this endpoint earns the
 same suspicion as the Hermes bridge. **Distinguishing *unsupported* from
 *silently ignored* is the actual goal.**
 
+Resolved by one probe on 2026-08-16. One JSON request sent a known-good
+832×1248 poster, a same-size alpha mask covering only the footer, `n: 2`,
+`aspect_ratio: "2:3"`, and `resolution: "1k"`. The endpoint accepted every
+field and returned two 832×1248 candidates from the single request. Both
+changed the masked footer from `s11a.com` to `Q1 PROBE` while preserving the
+visible layout and copy outside the mask. In this probe, `mask`, `n`,
+`aspect_ratio`, and `resolution` were honoured rather than silently ignored.
+
 **`Q-2` — Does MiniMax matter enough to compact the templates?**
 Blocks: `P2-2` being more than a stub. Env: none — a product decision.
 

@@ -6,7 +6,7 @@ import pytest
 from lith.call import ImageRequest
 from lith.call.creds import Credential
 from lith.call.http import AuthError, InvalidRequest, ProviderError
-from lith.call.xai import GENERATIONS_URL, build_request, generate
+from lith.call.xai import GENERATIONS_URL, GENERATION_TIMEOUT, build_request, generate
 
 
 def credential(*, oauth=False, provider="xai"):
@@ -70,6 +70,7 @@ def test_exact_request_body_and_parsed_call_result():
             "resolution": "2k",
         },
         headers={"Authorization": "Bearer fixture-secret"},
+        timeout=GENERATION_TIMEOUT,
     )
     assert [candidate.index for candidate in result.candidates] == [0, 1]
     assert [candidate.data for candidate in result.candidates] == [first, second]
@@ -251,7 +252,7 @@ def test_mime_is_inferred_when_xai_does_not_report_it():
         result = generate(request, credential=credential())
     assert result.candidates[0].mime == "image/png"
     assert result.candidates[0].dimensions == (20, 30)
-    assert result.model_reported is None
+    assert result.model_reported == "grok-imagine-image-2.0"
     assert result.aspect_reported is None
     assert result.revised_prompt is None
     assert result.cost is None

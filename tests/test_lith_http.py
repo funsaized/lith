@@ -212,3 +212,9 @@ def test_network_failure_and_invalid_json_are_provider_errors():
     with patch("urllib.request.urlopen", return_value=response):
         with pytest.raises(ProviderError, match="invalid JSON"):
             post_json("https://provider.test/v1/images", {})
+
+
+def test_socket_timeout_is_a_typed_provider_error():
+    with patch("urllib.request.urlopen", side_effect=TimeoutError("read timed out")):
+        with pytest.raises(ProviderError, match="read timed out"):
+            post_json("https://provider.test/v1/images", {})

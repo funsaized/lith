@@ -14,6 +14,7 @@ from .http import AuthError, InvalidRequest, ProviderError, post_json
 
 
 GENERATIONS_URL = "https://api.x.ai/v1/images/generations"
+GENERATION_TIMEOUT = 180.0
 _MIME_BY_EXTENSION = {
     ".jpg": "image/jpeg",
     ".png": "image/png",
@@ -139,6 +140,7 @@ def generate(
             GENERATIONS_URL,
             body,
             headers={"Authorization": f"Bearer {resolved.secret}"},
+            timeout=GENERATION_TIMEOUT,
         )
     except AuthError as exc:
         if resolved.is_oauth:
@@ -151,7 +153,10 @@ def generate(
 
     return CallResult(
         candidates=_candidates(payload),
-        model_reported=_reported_string(payload.get("model")),
+        # The live API omits a top-level model even when it accepts an explicit
+        # model id. Preserve a reported value when present; otherwise the
+        # successful explicit request is the only non-speculative served id.
+        model_reported=_reported_string(payload.get("model")) or request.model,
         aspect_reported=_reported_string(payload.get("aspect_ratio")),
         revised_prompt=_revised_prompt(payload),
         unsupported=unsupported_fields(request),

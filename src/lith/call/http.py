@@ -205,8 +205,8 @@ def post_json(
             status = exc.code
             reason = str(exc.reason)
             raw = exc.read()
-        except urllib.error.URLError as exc:
-            reason = _redact_text(str(exc.reason), secrets)
+        except (urllib.error.URLError, TimeoutError) as exc:
+            reason = _redact_text(str(getattr(exc, "reason", exc)), secrets)
             raise ProviderError(f"{summary} failed: {reason}") from exc
 
         payload = _decode_payload(raw)

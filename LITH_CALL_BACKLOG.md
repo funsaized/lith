@@ -87,6 +87,14 @@ Source: [REST reference](https://docs.x.ai/developers/rest-api-reference/inferen
 Response: `data[]` of `{url, b64_json, mime_type, revised_prompt, file_output,
 storage_error}` plus `usage.cost_in_usd_ticks`.
 
+A measured `P1-6` call on 2026-08-16 omitted top-level `model` and
+`aspect_ratio`, consistent with that documented response shape. For a
+successful request carrying an explicit model id, `CallResult.model_reported`
+therefore uses the response value when present and otherwise the exact model id
+the endpoint accepted. `aspect_reported` does not make the same fallback: the
+returned pixel dimensions are the evidence for whether the requested frame was
+honoured.
+
 `revised_prompt` is `""` in the reference example. If it is ever populated the
 model rewrote our prompt — surface it, because authored-not-improvised copy is
 this pipeline's entire premise.

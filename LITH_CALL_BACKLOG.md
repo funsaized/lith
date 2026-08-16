@@ -286,7 +286,7 @@ This is not an adapter detail — it means **MiniMax cannot serve this pipeline'
 actual workload**. Treat the adapter as built-for-completeness with a hard
 precondition, not as a working provider for posters. Resolving it properly
 requires a compact template variant per family, which is a design-language
-change and is deliberately not scoped here. See `Q-2`.
+change and is deliberately out of scope. See §6.
 
 ### 3.2 The capability model is the real blocker for everything else
 
@@ -775,9 +775,13 @@ support" would then mean portrait references, never poster editing.
 `usage.cost_in_usd_ticks`, nothing from the other two. No estimation, no
 budgeting, no caps.
 
-**Compact MiniMax templates.** Would unblock §3.1, but it is a design-language
-change affecting all seven families, not a provider-layer task. Scope separately
-if MiniMax matters.
+**MiniMax stays wired; templates stay full.** Keep the adapter behind its
+1500-character precondition, but do not compact the seven templates. The
+compressible mass is the anti-invention machinery; removing it would create a
+second visual identity per family for a provider whose only unique parameter is
+`seed`. Keep `prompt_optimizer: false` permanently: its mechanism is
+undocumented, it modifies a prompt containing the literal copy block, and it
+cannot be scoped to leave the SPEC block alone.
 
 **Video, candidate scoring, post ingestion.** Unchanged from
 `docs/explanation-pipeline.md` § Deliberate omissions.
@@ -812,11 +816,3 @@ field and returned two 832×1248 candidates from the single request. Both
 changed the masked footer from `s11a.com` to `Q1 PROBE` while preserving the
 visible layout and copy outside the mask. In this probe, `mask`, `n`,
 `aspect_ratio`, and `resolution` were honoured rather than silently ignored.
-
-**`Q-2` — Does MiniMax matter enough to compact the templates?**
-Blocks: `P2-2` being more than a stub. Env: none — a product decision.
-
-§3.1 shows no lith prompt fits MiniMax's 1500-char cap, and four of seven
-families exceed it with an empty brief. Either MiniMax is a completeness
-checkbox with a precondition that always fires, or someone authors compact
-template variants. Answer before investing further in `minimax.py`.

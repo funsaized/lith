@@ -93,7 +93,6 @@ def build_request(
         "prompt": request.prompt,
         "n": request.n,
         "size": size,
-        "response_format": "b64_json",
         "output_format": output_format,
         "moderation": moderation,
     }

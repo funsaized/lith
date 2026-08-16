@@ -126,10 +126,16 @@ Source: [image generation guide](https://developers.openai.com/api/docs/guides/i
 | `output_format` | `png` `jpeg` `webp` |
 | `output_compression` | `0`–`100`, default `100`; only with `webp`/`jpeg` |
 | `n` | **1–10** |
-| `response_format` | `b64_json` (default) `url` |
 | `moderation` | `low` `auto` (default) |
 | `stream` / `partial_images` | boolean default `false` / `0`–`3` |
 | edits only | `image` (file or array), `mask` |
+
+**Correction measured in `P2-3` on 2026-08-16:** GPT Image rejects
+`response_format` with HTTP 400 `unknown_parameter`. The current official
+[image generation guide](https://developers.openai.com/api/docs/guides/image-generation)
+shows GPT Image requests without that field and states that the Image API
+returns base64-encoded image data. `response_format` is therefore not sent for
+the GPT Image models in this table; `data[].b64_json` is read directly.
 
 **`size` splits by model. This is the single most important line in the table:**
 

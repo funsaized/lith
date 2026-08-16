@@ -204,6 +204,60 @@ def nearest_supported(model: str | None, aspect: str) -> str:
     return min(usable, key=lambda pair: abs(pair[1] - want))[0]
 
 
+def pixel_size(model: str, aspect: str) -> str:
+    """Translate a ratio into a provider pixel size for an OpenAI model.
+
+    Fixed-size models use their documented lookup after the same visible
+    clamping as :func:`resolve_aspect`.  A constrained-range model searches
+    concrete edge multiples and chooses the smallest-area size among the most
+    accurate ratios.  The search is pure and deterministic.
+    """
+    capability = supported_by(model)
+    if capability is None:
+        raise ValueError(f"unknown model has no pixel-size capability: {model}")
+
+    if capability.pixel_sizes is not None:
+        resolved = nearest_supported(model, aspect)
+        for size in capability.pixel_sizes:
+            if "x" not in size:
+                continue
+            if resolved in _pixel_size_ratios((size,)):
+                return size
+        raise ValueError(f"{model} cannot map aspect {aspect} to a pixel size")
+
+    limits = capability.pixel_range
+    if limits is None:
+        raise ValueError(f"{model} accepts ratios rather than pixel sizes")
+
+    wanted = ratio(aspect)
+    if wanted is None:
+        raise ValueError(f"invalid aspect ratio: {aspect!r}")
+    if not limits.min_aspect <= wanted <= limits.max_aspect:
+        raise ValueError(
+            f"{model} cannot reach aspect {aspect}; ratio {wanted:g} is outside "
+            f"[{limits.min_aspect:g}, {limits.max_aspect:g}]"
+        )
+
+    step = limits.edge_multiple
+    best: tuple[float, int, int, int] | None = None
+    for height in range(step, limits.max_edge + 1, step):
+        for width in range(step, limits.max_edge + 1, step):
+            pixels = width * height
+            if not limits.min_pixels <= pixels <= limits.max_pixels:
+                continue
+            error = abs((width / height) - wanted) / wanted
+            candidate = (error, pixels, width, height)
+            if best is None or candidate < best:
+                best = candidate
+
+    if best is None:
+        raise ValueError(
+            f"{model} cannot reach aspect {aspect} within its pixel constraints"
+        )
+    _, _, width, height = best
+    return f"{width}x{height}"
+
+
 def content_aspect(brief: dict[str, Any], style: dict[str, Any]) -> str | None:
     """The ratio the brief's own content shape calls for, if it calls for one.
 

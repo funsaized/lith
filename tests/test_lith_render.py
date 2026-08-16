@@ -480,6 +480,39 @@ def test_range_capability_preserves_admitted_ratio_without_a_note():
     )
 
 
+def test_pixel_size_uses_fixed_openai_lookup():
+    from lith.aspect import pixel_size
+
+    assert pixel_size("gpt-image-1", "1:1") == "1024x1024"
+    assert pixel_size("gpt-image-1.5", "3:2") == "1536x1024"
+    assert pixel_size("gpt-image-1-mini", "2:3") == "1024x1536"
+    assert pixel_size("gpt-image-1", "16:9") == "1536x1024"
+
+
+def test_gpt_image_2_pixel_size_satisfies_every_constraint():
+    from lith.aspect import pixel_size, ratio
+
+    # Literal union of the concrete provider ratios in backlog section 2.
+    aspects = {
+        "1:1", "3:4", "4:3", "9:16", "16:9", "2:3", "3:2",
+        "9:19.5", "19.5:9", "9:20", "20:9", "1:2", "2:1", "21:9",
+    }
+    for aspect in aspects:
+        width, height = map(int, pixel_size("gpt-image-2", aspect).split("x"))
+        assert width % 16 == height % 16 == 0
+        assert max(width, height) <= 3840
+        assert 655_360 <= width * height <= 8_294_400
+        assert 1 / 3 <= width / height <= 3
+        assert abs((width / height) - ratio(aspect)) / ratio(aspect) <= 0.01
+
+
+def test_gpt_image_2_pixel_size_explains_unreachable_ratio():
+    from lith.aspect import pixel_size
+
+    with pytest.raises(ValueError, match=r"cannot reach aspect 4:1.*outside"):
+        pixel_size("gpt-image-2", "4:1")
+
+
 def test_model_capabilities_express_all_three_aspect_variants_and_limits():
     from lith.aspect import MODEL_ASPECTS, ModelCapability, PixelSizeRange
 

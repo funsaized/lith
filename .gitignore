@@ -6,7 +6,7 @@ __pycache__/
 *.egg-info/
 # Sweep artifacts: generated candidates and published images
 candidates/
-outputs/*
+**/outputs/*
 !outputs/B_brutalist_32_langs_raw.jpg
 .worktrees/
 .coverage

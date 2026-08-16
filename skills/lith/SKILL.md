@@ -170,6 +170,13 @@ labels it names appear as text.
 - Report which of `prompt`, `negative_prompt`, `aspect_ratio`, `model` and `n`
   the generation tool actually accepted. A tool that ignores a field still
   returns an image, so a run can look clean while the envelope was discarded.
+- Read the warnings before spending. `lith-generate` and `lith-call` both print
+  `aspect_note` (the frame was clamped), `copy_note` (the copy block is too thin
+  for the template around it, and the model may letter the template instead) and
+  `limit_notes` (an `n` or prompt-length ceiling was crossed) on stderr, and
+  carry them in `--emit-json` — including under `--check` and `--dry-run`, so
+  they cost nothing to see. A `copy_note` on a sectionless brief is the warning
+  described under Pitfalls; treat it as a reason to review, not a formality.
 - Never concatenate, prepend, or append an envelope field to the `prompt`
   string when the provider has no parameter for it. A negative prompt pasted
   into a positive prompt asks the model *for* what it was meant to forbid, and
@@ -178,8 +185,13 @@ labels it names appear as text.
   in `CallResult.unsupported` and leave `prompt` untouched.
 - Expect deterministic output paths to overwrite an earlier run.
 - Use only HTTP(S) URLs with `--image-url`.
-- Expect a brief with no `sections` to render a title-only poster in any
-  family; the layout only asks for zones the brief has copy for.
+- Do not assume a brief with no `sections` yields a clean title-only poster. It
+  does in some families and fails badly in others: asked for a title alone,
+  `F_woodcut` renders a clean broadside while `A_sticker` builds its sticker
+  sheet anyway and fills five panels with invented copy, palette hex codes, and
+  fragments of the font name. A family whose composition implies multiplicity
+  has nothing to put in it. Give a sectionless brief at least a subtitle and a
+  footer, or expect to review it closely.
 
 ## Verification
 

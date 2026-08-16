@@ -461,6 +461,25 @@ def test_current_generation_models_are_known():
     assert nearest_supported("gpt-image-2", "16:9") == "16:9"
 
 
+def test_range_capability_preserves_admitted_ratio_without_a_note():
+    from lith.aspect import nearest_supported, resolve_aspect, unsupported_aspect
+
+    style = {"default_aspect": "1:1"}
+    assert nearest_supported("gpt-image-2", "20:9") == "20:9"
+    assert unsupported_aspect("gpt-image-2", "20:9") is None
+    assert resolve_aspect({"aspect": "20:9"}, style, "gpt-image-2") == (
+        "20:9", None,
+    )
+
+    clamped, note = resolve_aspect(
+        {"aspect": "16:9"}, style, "gpt-image-1"
+    )
+    assert clamped == "3:2"
+    assert note == (
+        "gpt-image-1 cannot produce 16:9; using nearest supported 3:2"
+    )
+
+
 def test_model_capabilities_express_all_three_aspect_variants_and_limits():
     from lith.aspect import MODEL_ASPECTS, ModelCapability, PixelSizeRange
 

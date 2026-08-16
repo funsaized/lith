@@ -60,11 +60,7 @@ class ModelCapability:
             raise ValueError("prompt_max_chars must be at least 1")
 
     def __contains__(self, aspect: object) -> bool:
-        """Return whether a concrete ratio is admitted by this capability.
-
-        Resolution still deliberately uses the pre-existing finite samples for
-        a constrained range.  Range-aware clamping is a separate change.
-        """
+        """Return whether a concrete ratio is admitted by this capability."""
         if not isinstance(aspect, str):
             return False
         if self.ratio_enum is not None:
@@ -158,12 +154,7 @@ def _pixel_size_ratios(pixel_sizes: tuple[str, ...]) -> frozenset[str]:
 
 
 def _resolver_ratios(model: str, capability: ModelCapability) -> frozenset[str]:
-    """Finite choices used by the existing resolver.
-
-    A later task makes clamping range-aware.  Until then gpt-image-2 keeps the
-    same samples the old table exposed, while its real constraints are already
-    represented by ``pixel_range``.
-    """
+    """Finite choices used when an enum or range boundary needs clamping."""
     if capability.ratio_enum is not None:
         return capability.ratio_enum - {"auto"}
     if capability.pixel_sizes is not None:
@@ -177,6 +168,8 @@ def unsupported_aspect(model: str, aspect: str) -> str | None:
     """Name the supported set when a model cannot produce ``aspect``."""
     capability = supported_by(model)
     if capability is None:
+        return None
+    if capability.pixel_range is not None and aspect in capability:
         return None
     supported = _resolver_ratios(model, capability)
     if aspect in supported:
@@ -195,6 +188,8 @@ def nearest_supported(model: str | None, aspect: str) -> str:
     """
     capability = supported_by(model)
     if capability is None:
+        return aspect
+    if capability.pixel_range is not None and aspect in capability:
         return aspect
     supported = _resolver_ratios(model or "", capability)
     if aspect in supported:

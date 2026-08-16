@@ -1,8 +1,8 @@
 {
   "name": "integration-09-sidebar-B",
-  "description": "Integration testbed row: family B, model grok-imagine-image-quality.",
+  "description": "Integration testbed row: family B, model gpt-image-1-mini.",
   "style": "B",
-  "model": "grok-imagine-image-quality",
+  "model": "gpt-image-1-mini",
   "n": 2,
   "brief": {
     "topic": "private tailscale mesh across three machines",

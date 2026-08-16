@@ -92,15 +92,22 @@ def test_testbed_covers_every_family_and_model():
     families = {d["style"] for d in docs}
     assert families == set("ABCDEFG"), f"families missing: {set('ABCDEFG') - families}"
     models = {d["model"] for d in docs}
-    # P0-2 corrects the capability table before P0-9 migrates the testbed.  In
-    # this interval the old recipe ids remain deliberate fixtures, but no other
-    # unknown model may enter.  P0-9 restores exhaustive table coverage.
-    legacy_recipe_ids = {
-        "grok-imagine-image-quality", "grok-imagine-image", "minimax-image",
-    }
-    unknown = models - set(MODEL_ASPECTS) - legacy_recipe_ids
-    assert not unknown, f"unrecognised recipe models: {unknown}"
-    assert {"grok-imagine-image-2.0", "gpt-image-2", "gpt-image-1"} <= models
+    assert models == set(MODEL_ASPECTS), (
+        f"capability models missing from testbed: {set(MODEL_ASPECTS) - models}; "
+        f"unrecognised recipe models: {models - set(MODEL_ASPECTS)}"
+    )
+
+
+def test_gpt_image_2_resolves_20_9_without_clamping():
+    matches = [
+        p for p in RECIPES
+        if (doc := json.loads(p.read_text()))["model"] == "gpt-image-2"
+        and doc["brief"].get("aspect") == "20:9"
+    ]
+    assert matches, "no gpt-image-2 recipe exercises a ratio outside the old 15"
+    rendered = render_prompt(load_recipe(matches[0]))
+    assert rendered["aspect_ratio"] == "20:9"
+    assert rendered["aspect_note"] is None
 
 
 def test_testbed_covers_every_aspect_resolution_rung():

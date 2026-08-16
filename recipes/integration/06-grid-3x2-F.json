@@ -1,8 +1,8 @@
 {
   "name": "integration-06-grid-3x2-F",
-  "description": "Integration testbed row: family F, model minimax-image.",
+  "description": "Integration testbed row: family F, model image-01.",
   "style": "F",
-  "model": "minimax-image",
+  "model": "image-01",
   "n": 2,
   "brief": {
     "topic": "private tailscale mesh across three machines",

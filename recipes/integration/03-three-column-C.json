@@ -1,8 +1,8 @@
 {
   "name": "integration-03-three-column-C",
-  "description": "Integration testbed row: family C, model grok-imagine-image-quality.",
+  "description": "Integration testbed row: family C, model gpt-image-2-2026-04-21.",
   "style": "C",
-  "model": "grok-imagine-image-quality",
+  "model": "gpt-image-2-2026-04-21",
   "n": 2,
   "brief": {
     "topic": "private tailscale mesh across three machines",

@@ -30,18 +30,21 @@ candidates. Stage 6 is a human and a separate tool.
 Stage 3 is the one that moved. It used to be a call lith described and left to
 somebody else; `lith-press` now makes it.
 
-That is not an unfinished pipeline; it is where the deterministic/probabilistic
-line was drawn. Everything on lith's side of the line is pure, testable, and
-reproducible: given the same recipe, `render_prompt` returns the same prompt —
-copy block and layout description included — forever, and `lith-print` publishes
-the model's bytes unchanged under a name derived from that same recipe.
-Everything on the other side needs judgment, and lith declines to pretend
-otherwise.
+Prompt rendering is deterministic for a fixed Lith version and templates:
+`render_prompt` returns the same copy block and layout description. Source-image
+publication preserves the provider's bytes under a derived name. Provider
+responses remain probabilistic, and selecting a visually correct candidate
+requires judgment. Strict publication checks the frame, not the lettering.
 
-The concrete consequence: `lith-print` with no `--image-url` and no `--image-file`
-prints its plan and exits 0. The dry run is the default, not a flag, because
+The concrete consequence: `lith-print` with no `--image-url`, `--image-file`, or
+`--svg` prints its plan and exits 0. The dry run is the default, not a flag, because
 the step it can't do — deciding which candidate is the good one — comes at the
 end rather than the middle.
+
+The optional `lith-print --svg` path bypasses model generation and renders a
+standalone text poster. Its exact-copy contract covers authored ASCII text in
+SVG, with explicit layout and font limits; it does not composite provider
+images. See [Deterministic copy output](explanation-deterministic-copy.md).
 
 ## Why the driver now makes the call
 
@@ -110,12 +113,13 @@ are exactly the models `aspect.MODEL_ASPECTS` holds capabilities for — the two
 tables are meant to be read together.
 
 **Which road — Hermes or direct?** `lith-press --check` answers this without
-calling anything. It uses Hermes' own generation tool only when *both* the
-configured model matches the recipe's and the resolved aspect is one of the
-three shapes that tool can deliver. Either condition failing routes to
-`lith-press`, and the printed `reason` says which one.
+calling anything. Hermes generation is selected only when its configured model
+matches the recipe, the resolved aspect is `16:9`, `1:1` or `9:16`, the request
+asks for one candidate, and no seed/resolution/quality override is supplied.
+Compact mode always routes directly to disable prompt optimization. Any failed
+condition routes to `lith-press`, with the reason reported.
 
-The second condition matters as much as the first. Hermes' `image_generate`
+The aspect condition matters even when the model matches. Hermes' `image_generate`
 takes `landscape`, `square`, or `portrait` — three buckets. A matching model
 still returns the wrong frame for `2:3`, `3:2`, or `20:9`, and that translation
 is where every frame drift in both sweeps originated.
@@ -237,9 +241,11 @@ honors the envelope. A generation tool can accept `aspect_ratio`, `model` and
 `negative_prompt`, quietly drop all three, and still return an image — the run
 looks clean while the envelope was discarded. That is the failure `lith-press`
 was built to end: it sends the fields itself and reports back what the provider
-said it did, so `model_reported` and `unsupported` replace an assumption with
-evidence. Hand the envelope to something else and you are back to trusting it,
-which is why `lith-print --strict` still checks the delivered frame independently
+said it did. `unsupported` identifies fields the adapter cannot send. On
+xAI/OpenAI, `model_reported` falls back to the requested ID when the response
+omits a model; inspect `raw.model` for independent provider evidence. A fallback
+is not proof of the served model. Hand the envelope to something else and you
+are back to trusting it, which is why `lith-print --strict` still checks the delivered frame independently
 of who produced it.
 
 **Provider authorization is scoped to the original request.** The transport uses

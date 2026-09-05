@@ -82,19 +82,20 @@ uv run lith-print --recipe recipes/tutorial_mesh.json
 [aspect]      2:3
 [model]       grok-imagine-image-2.0 (n=4)
 [prompt]
-  Single pure-black panel (#000000) overlaid with a 1px cyan grid at 8% opacity...
-  LAYOUT — arrange the frame exactly as these numbered notes describe...
+  Draw one sci-fi mission-control poster. Visual instructions in this paragraph...
+  Arrange only the zones described below:
   (1) the title, set at 12-15% of frame height, with the subtitle centred beneath it...
   (2) the 3 section panels, with the first panel spanning the full width at roughly
       double height as the anchor of the composition, and the rest in a balanced grid
       beneath it...
   (3) the footer line, on a rule beneath everything else.
   ...
-  TITLE: 32 LANGS
-  SUBTITLE: ONE AGENT, EVERY STACK
-  SECTION 1 HEADING: 01 - RUNTIMES
-      - 32 languages, one image
-  ...
+  [
+    ["32 LANGS"],
+    ["ONE AGENT, EVERY STACK"],
+    ["01 - RUNTIMES", "32 languages, one image", ...],
+    ...
+  ]
 [output]      .../outputs/B_brutalist_32_langs.<jpg|png|webp>
 ```
 
@@ -107,10 +108,11 @@ The panels were arranged as a **hero** — one wide panel anchoring the top, the
 other two beneath. That also came from the panel count and the frame.
 
 And every word we wrote appears at the bottom of the prompt under a standing
-order to reproduce it character for character. The model draws; it never
-authors.
+order to reproduce it character for character. This preserves the authored
+request, not a guarantee of image-model output: inspect the actual lettering
+before accepting a candidate.
 
-With no image supplied the driver prints its plan and stops. This is the safe
+With no image supplied and no `--svg`, the driver prints its plan and stops. This is the safe
 dry run, and we can call it as often as we like.
 
 ---
@@ -145,7 +147,7 @@ Set it back to `hero` (or delete the line) before continuing.
 ask it which road it plans to take:
 
 ```bash
-uv run lith-press --check --recipe recipes/tutorial_mesh.json
+uv run lith-press --check --recipe recipes/tutorial_mesh.json --n 1
 ```
 
 ```
@@ -162,7 +164,7 @@ the exact frame, lith calls the provider directly.
 Now look at the request itself, still without touching the network:
 
 ```bash
-uv run lith-press --dry-run --recipe recipes/tutorial_mesh.json
+uv run lith-press --dry-run --recipe recipes/tutorial_mesh.json --n 1
 ```
 
 ```json
@@ -175,8 +177,8 @@ uv run lith-press --dry-run --recipe recipes/tutorial_mesh.json
   },
   "body": {
     "model": "grok-imagine-image-2.0",
-    "prompt": "Single pure-black panel (#000000) overlaid with …",
-    "n": 4,
+    "prompt": "Draw one sci-fi mission-control poster. …",
+    "n": 1,
     "aspect_ratio": "2:3",
     "response_format": "b64_json"
   },
@@ -186,8 +188,8 @@ uv run lith-press --dry-run --recipe recipes/tutorial_mesh.json
 }
 ```
 
-This is the exact JSON that would go over the wire, with the credential
-redacted. Two things are worth noticing.
+This excerpt abbreviates the prompt and headers; the actual command prints
+the complete request with the credential redacted. Two things are worth noticing.
 
 The `aspect_ratio` is `2:3` — the frame lith derived in step 2, sent verbatim
 rather than rounded to something the provider finds convenient.
@@ -212,8 +214,10 @@ uv run lith-press --recipe recipes/tutorial_mesh.json --n 1
 [unsupported] negative_prompt: xAI image generation does not accept negative_prompt
 ```
 
-`model_reported` is the id the provider says actually served the request — not
-the one we asked for. When those differ, we want to know.
+`model_reported` preserves the provider's model ID when supplied. xAI/OpenAI
+fall back to the requested ID when their response omits it. Inspect `raw.model`
+in `--emit-json` output for independent evidence; a fallback does not verify
+which model served the image.
 
 **No key? We can still finish.** The repository ships a real Grok result from
 this family, so use it as our generated image:
@@ -280,11 +284,22 @@ We turned an announcement into a finished graphic:
 3. One key changed the arrangement without touching anything else.
 4. `lith-press --check` and `--dry-run` showed the route and the exact request
    before anything was spent.
-5. `lith-press` generated candidates, reporting which model really served them.
+5. `lith-press` generated candidates and retained provider metadata, including
+   model evidence when the response supplied it.
 6. `lith-print` checked the delivered frame against the request and published
    under a derived name.
 
 ## Where to go next
+
+For a newly rendered graphic with no provider call, run:
+
+```bash
+uv run lith-print --recipe recipes/deterministic.json --svg
+```
+
+This optional family B path preserves authored ASCII text in a stacked SVG.
+It rejects unsupported diagrams/layouts and overflow; fonts can vary by viewer.
+See [Deterministic copy output](explanation-deterministic-copy.md).
 
 - The fifteen arrangements and when each one earns its place —
   [About layouts](explanation-layouts.md).

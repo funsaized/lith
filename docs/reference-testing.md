@@ -100,7 +100,7 @@ harness below requires its own explicit `--live` flag and budget.
 | `test_output_integration.py` | Complete PNG, JPEG, and WebP containers through the output path; truncated and corrupt input rejection. |
 | `test_recipe_generation_integration.py` | Brief expansion to rendered envelope, including a subprocess run through the CLI. |
 | `test_lith_expand.py` | `expand_brief` and `parse_brief_response`. |
-| `test_lith_layering.py` | Import-graph guard. Parses `render`, `aspect`, `layout`, `recipe`, `styles`, and `paths` with `ast` and fails if any imports `lith.cli`, `lith.call`, or a network module. One test, no environment input. |
+| `test_lith_layering.py` | Import-graph guard. Parses `render`, `aspect`, `layout`, `recipe`, `styles`, `paths`, and `svg` with `ast` and fails if any imports `lith.cli`, `lith.call`, or a network module. One test, no environment input. |
 | `test_lith_smoke_e2e.py` | One end-to-end recipe-to-published-file run. |
 | `test_live_providers.py` | The three live canaries. See [Live provider canaries](#live-provider-canaries). |
 | `test_provider_matrix.py` | Offline defaults, manifest validation, live budget, retries, failure retention, model provenance and separate visual-review status. All network responses are mocked. |

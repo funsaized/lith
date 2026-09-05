@@ -56,7 +56,7 @@ Three commands, one per stage of the lithographic sequence, in this order:
 |---|---|---|
 | `lith-plate` | `src/lith/cli/plate.py` | Renders a brief into a prompt and a press envelope. No network. |
 | `lith-press` | `src/lith/cli/press.py` | Calls a provider for candidate images. Spends money. |
-| `lith-print` | `src/lith/cli/print.py` | Validates the chosen frame and publishes it. |
+| `lith-print` | `src/lith/cli/print.py` | Validates and publishes a chosen frame, or renders an explicitly requested offline SVG text poster. |
 
 **A fourth command needs a fourth stage.** Candidate scoring, calendar
 rotation, and post-to-brief ingestion are all named in the README's status
@@ -75,7 +75,7 @@ What to preserve when you touch one:
   unless a strict flag opts in. A person reading output and a script scraping
   exit codes need different things from the same run.
 - **Nothing is written in a preview mode.** `lith-plate` without `--press`,
-  `lith-press --dry-run/--check/--auth`, and `lith-print` with no image source
+  `lith-press --dry-run/--check/--auth`, and `lith-print` with neither an image source nor `--svg`
   all print and exit without touching the filesystem or the network.
 - **Secrets never print.** `--auth` reports tier, source, and fingerprint;
   `--dry-run` prints the request body with the `Authorization` header redacted.

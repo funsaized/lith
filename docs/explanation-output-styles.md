@@ -2,7 +2,8 @@
 
 Seven families, one spec. The same recipe — same title, same panels, same body
 lines — renders as a mission-control readout, an Edwardian patent drawing, a
-sticker sheet, or a deploy log, and the words come out identical in every one.
+sticker sheet, or a deploy log. Each template requests the same authored words;
+actual model lettering still requires visual review.
 This page is about how that separation works and how to choose between them.
 
 For the family table, see [README → Style families](../README.md#style-families).

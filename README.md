@@ -2,14 +2,16 @@
 
 Lith renders a short brief into a style-locked image-generation prompt, calls
 xAI, OpenAI, or MiniMax through one inspectable provider layer, then validates
-and publishes the image that comes back.
+and publishes the image that comes back. An optional offline SVG path renders
+authored text directly for family B posters.
 
 **What lith is.** Seven fixed visual style families in
 [`styles.json`](src/lith/data/styles.json), each a prompt template with a few
 substitution slots. A JSON recipe format that makes a brief re-runnable. A
 poster spec — headline, subtitle, sections, diagram, footer — serialized into
 the prompt as a literal copy block the model is ordered to reproduce character
-for character, so no shipped word was invented by the model. Fifteen named
+for character. Generated lettering still needs visual review; frame checks
+cannot prove copy fidelity. Fifteen named
 layouts and a resolution chain that picks one from the shape of your content
 and the shape of the frame. Three console scripts, eight root-level convenience
 functions, and a typed `lith.call` API. Standard library only, no vendor SDKs or
@@ -19,7 +21,7 @@ external binaries.
 `lith-press` performs generation, but it does not score or rank candidates, post
 to any platform, do video, or turn an existing post into a brief. Candidate
 selection and publication remain explicit handoffs; `lith-print` with no image
-source prints its plan and exits 0.
+source and no `--svg` prints its plan and exits 0.
 
 New here? Work through
 [Tutorial: your first announcement image](docs/tutorial-first-image.md) — a
@@ -30,6 +32,7 @@ Where the pipeline draws its lines, and why it now makes the call itself:
 seven ways: [About output styles](docs/explanation-output-styles.md). How panels
 get arranged: [About layouts](docs/explanation-layouts.md). The palette and
 composition rules underneath: [About the design language](docs/explanation-design-language.md).
+For exact authored SVG text, see [Deterministic copy output](docs/explanation-deterministic-copy.md).
 
 Driving lith from a Hermes session: [`skills/lith/SKILL.md`](skills/lith/SKILL.md),
 and [how to install it](#install-the-hermes-skill).
@@ -64,7 +67,7 @@ again, in your frame, saying the words you wrote.
 | The model paraphrases your headline | The poster copy is serialized into the prompt as a literal block the model is ordered to reproduce character for character |
 | "same style as last time," from memory | Seven fixed families in `styles.json` — template, negative prompt, palette, default aspect, all data |
 | You get whatever ratio the provider felt like | Aspect resolves explicit → content shape → family default → per-model clamp, and `lith-print --strict` measures the delivered file and exits nonzero when it drifted |
-| The prompt lives in chat scrollback | A JSON recipe re-renders byte-identically forever, to a deterministic output path |
+| The prompt lives in chat scrollback | A JSON recipe re-renders byte-identically with the same Lith version and templates, to a deterministic output path |
 | One vendor's SDK and payload shape | One `ImageRequest` across xAI, OpenAI and MiniMax, with the exact body inspectable before you spend |
 
 That last row is not hypothetical. Two sweeps of the 34-recipe testbed once ran
@@ -343,8 +346,9 @@ transport, or provider failures terminate nonzero without writing candidates.
 
 ### `lith-print`
 
-Validates a generated image and publishes it under the recipe's deterministic
-path. With no image source, it prints its plan and exits.
+Validates a generated image, or renders an offline SVG text poster, under the recipe's
+deterministic path. With neither an image source nor `--svg`, it prints its
+plan and exits.
 
 ```
 lith-print --recipe PATH [--image-url URL | --image-file PATH | --svg] [options]
@@ -353,17 +357,17 @@ lith-print --recipe PATH [--image-url URL | --image-file PATH | --svg] [options]
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `--recipe` | path | **required** | Recipe file. |
-| `--image-url` | url | — | HTTP(S) URL of the generated image. Mutually exclusive with `--image-file`. |
-| `--image-file` | path | — | Local generated image. Mutually exclusive with `--image-url`. |
+| `--image-url` | url | — | HTTP(S) URL of the generated image. Mutually exclusive with `--image-file` and `--svg`. |
+| `--image-file` | path | — | Local generated image. Mutually exclusive with `--image-url` and `--svg`. |
 | `--output-dir` | path | beside the recipe | Directory for the published file. Defaults to the recipe's sibling `outputs/`, not the cwd. |
 | `--strict` | flag | off | Exit 1 when the delivered frame does not match the request. The file is still published. |
 | `--svg` | flag | off | Offline deterministic family B SVG text poster. Stack layout, printable ASCII, supported frames only; overflow always fails before publication. See [deterministic copy](docs/explanation-deterministic-copy.md) and `recipes/deterministic.json`. |
 
-Two modes:
+Three modes:
 
 | Condition | Behavior |
 |---|---|
-| No `--image-url` and no `--image-file` | Prints recipe, family, style, aspect, model, prompt, and output path; exits 0. Nothing is written. |
+| No `--image-url`, `--image-file`, or `--svg` | Prints recipe, family, style, aspect, model, prompt, and output path; exits 0. Nothing is written. |
 | Image source | Writes the image to the recipe's output path, extension sniffed from the bytes; exits 0, or 1 under `--strict` if the frame drifted. |
 | `--svg` | Writes a deterministic `.svg` and exits 0. Unsupported content or overflow exits 2 before writing. `--strict` adds no behavior in this mode. |
 
@@ -702,14 +706,15 @@ The filename derives from `output_path(dir, family_key, headline, ext)`:
 The directory is `--output-dir` for `lith-print`, defaulting to the recipe's
 sibling `outputs/`; `lith-plate` derives the same directory from `--recipe`,
 and falls back to `./outputs` in flag mode where there is no recipe to anchor to. `lith-print` sniffs `ext` from the image bytes —
-`.jpg`, `.png`, or `.webp`. `lith-plate` has no bytes yet, so a path it
+`.jpg`, `.png`, or `.webp`. With `--svg`, it writes `.svg` directly. `lith-plate` has no bytes yet, so a path it
 derives is a bare stem and both commands print it the same way, as
 `{stem}.<jpg|png|webp>`. An explicit `--out` is recorded verbatim instead. The
 file is overwritten without prompting when a recipe is re-run.
 
 `outputs/B_brutalist_32_langs_raw.jpg` is a committed legacy Grok artifact used
-as complete JPEG bytes by the tutorial and smoke test. The opt-in provider
-canaries use the dill-pickle brief in `recipes/live_test_recipe.json`.
+as complete JPEG bytes by the tutorial and smoke test. The opt-in
+xAI/OpenAI canaries use the dill-pickle brief in `recipes/live_test_recipe.json`;
+the MiniMax canary uses `recipes/minimax/sparse.json`.
 
 ---
 
@@ -752,7 +757,10 @@ uv run pytest -m live_provider -s
 | Layout vocabulary (15 arrangements) | done |
 | Aspect resolution and per-model clamping | done |
 | Published-image aspect check | done |
-| Direct xAI/OpenAI/MiniMax provider layer | done — `lith-press` / `lith.call` |
+| Direct xAI/OpenAI/MiniMax provider layer | done — `lith-press` / `lith.call`; live checks are sampled, not exhaustive |
+| MiniMax compact prompts | experimental — both initial live samples failed visual copy review |
+| Deterministic SVG text posters | done — optional family B stack/ASCII path; diagrams and portable raster output are outside its scope |
+| Offline provider matrix and clean-install CI | done — explicit live budgets, Python 3.10/3.14, coverage and wheel checks |
 | Credential inspection and request dry-run | done |
 | Topic expansion (`expand_brief`) | done, library only — no CLI |
 | Hermes `SKILL.md` wrapper | done, shipped in `skills/`; [installed manually](#install-the-hermes-skill) |
@@ -770,6 +778,7 @@ uv run pytest -m live_provider -s
 | [Tutorial: your first announcement image](docs/tutorial-first-image.md) | Tutorial | Learning the pipeline by running it once |
 | [Python API and implementation reference](docs/reference-python-api.md) | Reference | Calling the library, or reading the internals |
 | [Testing reference](docs/reference-testing.md) | Reference | Running the suite, markers, live canaries, coverage gates |
+| [Deterministic copy output](docs/explanation-deterministic-copy.md) | Explanation | Producing exact authored SVG text and understanding font/layout limits |
 | [About the pipeline](docs/explanation-pipeline.md) | Explanation | Understanding what's built, what isn't, and why |
 | [About layouts](docs/explanation-layouts.md) | Explanation | Choosing an arrangement, or understanding the one lith derived |
 | [About output styles](docs/explanation-output-styles.md) | Explanation | Choosing a family, and how one spec renders seven ways |

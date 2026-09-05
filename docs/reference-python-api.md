@@ -26,11 +26,12 @@ wherever a signature says `path`.
 - [`lith.paths`](#lithpaths)
 - [`lith.expand`](#lithexpand)
 - [`lith.imagebytes`](#lithimagebytes)
-- [`lith.cli.plate`](#lithcligenerate)
-- [`lith.cli.press`](#lithclicall)
-- [`lith.cli.print`](#lithclirun)
+- [`lith.cli.plate`](#lithcliplate)
+- [`lith.cli.press`](#lithclipress)
+- [`lith.cli.print`](#lithcliprint)
 - [Exception summary](#exception-summary)
 - [Side effects and determinism](#side-effects-and-determinism)
+- [Deterministic SVG output](#deterministic-svg-output)
 
 ---
 
@@ -39,6 +40,7 @@ wherever a signature says `path`.
 ```
 src/lith/
 ├── __init__.py          public API — re-exports eight names
+├── svg.py               offline deterministic family B SVG text rendering
 ├── render.py            prompt-template substitution, spec and layout blocks
 ├── aspect.py            capability records, aspect resolution, pixel sizes
 ├── layout.py            zone notes and panel arrangements
@@ -67,24 +69,26 @@ The prompt side remains pure and points downward only:
 ```
 recipe  ←  styles
    ↑          ↑
-   └──────────┴──  render  ←  __init__  ←  cli.generate
+   └──────────┴──  render  ←  __init__  ←  cli.plate
              ↗   ↖
         aspect     layout        (pure; depend on nothing in-package)
 
 paths, expand                    (leaves; depend on nothing in-package)
 
-aspect, imagebytes  ←  call adapters  ←  lith.call dispatcher  ←  cli.call
-imagebytes, render, paths                                      ←  cli.run
+aspect, imagebytes  ←  call adapters  ←  lith.call dispatcher  ←  cli.press
+imagebytes, render, paths, svg                                 ←  cli.print
+recipe  ←  svg (offline text rendering)
 ```
 
-`render` is the only module that composes others: it resolves the frame through
+`render` composes the prompt: it resolves the frame through
 `aspect`, describes the zones through `layout`, and serializes the copy block
-itself. The provider layer may import pure modules such as `aspect` and
+itself. `svg` validates recipe copy and computes its own fixed canvas layout.
+The provider layer may import pure modules such as `aspect` and
 `imagebytes`; pure modules never import `lith.call` or `lith.cli`.
 
 Runtime dependencies: none beyond the standard library, and no external
 binaries. `expand_brief` starts only the `llm_cmd` a caller supplies. Network
-access is isolated to `imagebytes.download` and the provider adapters' shared
+access is isolated to `imagebytes` and the provider adapters' shared
 `urllib` JSON transport.
 
 ---
@@ -150,7 +154,7 @@ Two calling forms:
 `Recipe` takes it from `recipe.model` unless overridden. With no model, no
 clamping happens.
 
-**Slot substitution.** The template is formatted with exactly seven keyword
+**Slot substitution.** The template is formatted with exactly eight keyword
 arguments, regardless of which the template uses:
 
 | Slot | Value | Fallback |
@@ -774,7 +778,7 @@ generate(request, *, credential=None, **provider_options) -> CallResult
 ```
 
 `build_request` is pure: it performs no credential lookup and no network access,
-which is what [`lith-press --dry-run`](#lithclicall) prints.
+which is what [`lith-press --dry-run`](#lithclipress) prints.
 
 **Request bodies.** Each adapter sends only what its provider documents.
 
@@ -1042,7 +1046,7 @@ output_path(
 
 Returns `out_dir / f"{family_key}_{slug(headline)}{ext}"`. Pure — creates no
 directory and touches no file. `ext` is concatenated verbatim, so it must
-include its leading dot. `cli.run` passes `""` to build a bare stem and then
+include its leading dot. `cli.print` passes `""` to build a bare stem and then
 appends the extension it sniffs from the image bytes.
 
 ```python
@@ -1186,7 +1190,7 @@ both modes. When `--out` is absent, recipe mode anchors the extensionless stem
 to [`default_output_dir(recipe)`](#default_output_dir); flag mode uses
 `cwd/outputs`. `lith-plate` has no image bytes, so it does not name a format.
 The envelope carries that stem; the summary prints it as
-`{stem}.<jpg|png|webp>`, matching `cli.run`. An explicit `--out` is used
+`{stem}.<jpg|png|webp>`, matching `cli.print`. An explicit `--out` is used
 verbatim in both.
 
 Without `--recipe`, `--topic`, `--style`, and `--headline` are each required;
@@ -1427,7 +1431,7 @@ either term is zero — the check never raises and never blocks a publish.
 ```
 
 A model may silently substitute a ratio it does not support, and the layout in
-the prompt was composed for the frame that was requested, so `cli.run` prints
+the prompt was composed for the frame that was requested, so `cli.print` prints
 this as a `[warn]` line rather than letting the substitution pass unnoticed.
 
 ### `load_local`
@@ -1452,12 +1456,14 @@ main() -> int
 
 Loads the recipe, resolves the output directory from `--output-dir` or
 [`default_output_dir`](#default_output_dir), renders the prompt, and derives
-the output stem via `output_path(..., "")`. Branches two ways:
+the output stem via `output_path(..., "")` for source-image and preview modes.
+`--svg` bypasses prompt rendering and uses `lith.svg.render_svg` instead:
 
 | Branch | Effect |
 |---|---|
-| No image source | Prints recipe, family, style, aspect, model, `n`, prompt, and `{stem}.<jpg\|png\|webp>`. Writes nothing. |
+| No image source and no `--svg` | Prints recipe, family, style, aspect, model, `n`, prompt, and `{stem}.<jpg\|png\|webp>`. Writes nothing. |
 | Image source | Validates bytes in memory, warns if [`aspect_mismatch`](#aspect_mismatch) finds drift, and atomically publishes with the extension read by `image_ext`. |
+| `--svg` | Renders validated supported copy and atomically writes `.svg`; unsupported content or overflow exits 2 before writing. `--strict` adds no behavior. |
 
 `--strict` promotes that drift warning to exit code 1. The publish still
 happens first: the delivered bytes are what you need in order to see how the
@@ -1476,7 +1482,7 @@ previous artifact. Last replacement wins. Candidate publication uses this same
 per-file guarantee; a multi-file batch is not transactional. Abrupt process
 termination may leave temporary files, and writes are not fsynced.
 
-`--image-url` and `--image-file` are a mutually exclusive argparse group.
+`--image-url`, `--image-file`, and `--svg` form a mutually exclusive argparse group.
 Progress lines print with `flush=True`.
 
 **Returns** `0`, or `1` when `--strict` is set and the frame drifted. Argparse
@@ -1524,8 +1530,9 @@ and provider errors may carry `status_code` and `payload`.
 
 | Function | Filesystem | Network | Subprocess | Deterministic |
 |---|---|---|---|---|
-| `render_prompt` | — | — | — | yes |
+| `render_prompt` | bundled styles when passed a `Recipe` | — | — | yes for fixed styles |
 | `format_spec`, `format_layout` | — | — | — | yes |
+| `lith.svg.render_svg` | — | — | — | yes |
 | aspect helpers, `pixel_size` | — | — | — | yes |
 | `slug`, `output_path` | — | — | — | yes |
 | `load_recipe` | read | — | — | yes |

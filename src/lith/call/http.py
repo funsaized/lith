@@ -13,6 +13,7 @@ from typing import Any
 DEFAULT_TIMEOUT = 30.0
 DEFAULT_RETRY_BACKOFF = 0.5
 REDACTED = "<redacted>"
+_AUTH_HEADERS = frozenset({"authorization", "proxy-authorization"})
 
 
 class ProviderError(RuntimeError):
@@ -49,7 +50,7 @@ class InvalidRequest(ProviderError):
 def redact_headers(headers: Mapping[str, str]) -> dict[str, str]:
     """Copy request headers with credentials replaced by a fixed marker."""
     return {
-        key: REDACTED if key.lower() in {"authorization", "proxy-authorization"} else value
+        key: REDACTED if key.lower() in _AUTH_HEADERS else value
         for key, value in headers.items()
     }
 
@@ -60,11 +61,14 @@ def _request_summary(url: str, headers: Mapping[str, str]) -> str:
 
 
 def _authorization_values(headers: Mapping[str, str]) -> tuple[str, ...]:
-    return tuple(
-        value
-        for key, value in headers.items()
-        if key.lower() in {"authorization", "proxy-authorization"} and value
-    )
+    secrets = set()
+    for key, value in headers.items():
+        if key.lower() in _AUTH_HEADERS and value:
+            secrets.add(value)
+            parts = value.split(None, 1)
+            if len(parts) == 2:
+                secrets.add(parts[1])
+    return tuple(sorted(secrets, key=len, reverse=True))
 
 
 def _redact_text(text: str, secrets: tuple[str, ...]) -> str:
@@ -134,7 +138,7 @@ def _check_minimax(
         return
 
     message = _redact_text(str(base_resp.get("status_msg") or "provider error"), secrets)
-    rendered = f"{summary} failed with MiniMax status {raw_code}: {message}"
+    rendered = _redact_text(f"{summary} failed with MiniMax status {raw_code}: {message}", secrets)
     if code in (1004, 2049):
         error_type: type[ProviderError] = AuthError
     elif code == 1002:
@@ -171,8 +175,14 @@ def post_json(
 
     for attempt in range(2):
         request = urllib.request.Request(
-            url, data=encoded, headers=request_headers, method="POST"
+            url, data=encoded, method="POST"
         )
+        for key, value in request_headers.items():
+            if key.lower() in _AUTH_HEADERS:
+                # urllib copies ordinary headers onto redirected requests.
+                request.add_unredirected_header(key, value)
+            else:
+                request.add_header(key, value)
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 status = int(getattr(response, "status", 200))
@@ -181,7 +191,8 @@ def post_json(
         except urllib.error.HTTPError as exc:
             status = exc.code
             reason = str(exc.reason)
-            raw = exc.read()
+            with exc:
+                raw = exc.read()
         except (urllib.error.URLError, TimeoutError) as exc:
             reason = _redact_text(str(getattr(exc, "reason", exc)), secrets)
             raise ProviderError(f"{summary} failed: {reason}") from exc

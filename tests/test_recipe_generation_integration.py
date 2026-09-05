@@ -106,3 +106,23 @@ def test_generated_recipe_subprocess_failure_is_preserved():
     with pytest.raises(subprocess.CalledProcessError) as excinfo:
         _expand("failure")
     assert excinfo.value.returncode == 23
+
+
+@pytest.mark.parametrize("aspect", ["nan:1", "1:nan", "inf:1", "1:inf", "-1:-2", "1e308:1e-308", "1e-308:1e308"])
+def test_recipe_rejects_nonfinite_or_nonpositive_ratios(aspect):
+    brief = {"topic": "test", "headline": "TEST", "icon": "gear", "aspect": aspect}
+    with pytest.raises(ValueError, match="brief.aspect"):
+        recipe_from_brief(brief, style="B")
+
+
+@pytest.mark.parametrize("field", ["style", "model", "layout", "diagram_position"])
+@pytest.mark.parametrize("value", [[], {}, 123])
+def test_recipe_shape_errors_are_value_errors(field, value):
+    brief = {"topic": "test", "headline": "TEST", "icon": "gear"}
+    kwargs = {"style": "B"}
+    if field in {"style", "model"}:
+        kwargs[field] = value
+    else:
+        brief[field] = value
+    with pytest.raises(ValueError, match=field):
+        recipe_from_brief(brief, **kwargs)

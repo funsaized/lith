@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pathlib
 import struct
+import tempfile
 import urllib.parse
 import urllib.request
 import zlib
@@ -12,6 +13,8 @@ import zlib
 ALLOWED_SCHEMES = ("http", "https")
 DOWNLOAD_TIMEOUT = 30
 DOWNLOAD_MAX_BYTES = 25 * 1024 * 1024
+READ_CHUNK_BYTES = 64 * 1024
+PNG_MAX_DECOMPRESSED_BYTES = 256 * 1024 * 1024
 JPEG_MAGIC = b"\xff\xd8\xff"
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
@@ -32,10 +35,11 @@ def looks_like_image(body: bytes) -> bool:
     return False
 
 
-def _webp_chunks(body: bytes):
+def _webp_chunks(body: bytes) -> list[tuple[bytes, bytes]] | None:
     if len(body) < 12 or struct.unpack("<I", body[4:8])[0] + 8 != len(body):
         return
     offset = 12
+    chunks = []
     while offset + 8 <= len(body):
         kind = body[offset : offset + 4]
         length = struct.unpack("<I", body[offset + 4 : offset + 8])[0]
@@ -44,10 +48,11 @@ def _webp_chunks(body: bytes):
         padded_end = end + (length & 1)
         if end > len(body) or padded_end > len(body):
             return
-        yield kind, body[start:end]
+        chunks.append((kind, body[start:end]))
         offset = padded_end
     if offset != len(body):
         return
+    return chunks
 
 
 def _webp_dimensions(body: bytes) -> tuple[int, int] | None:
@@ -66,7 +71,7 @@ def _webp_dimensions(body: bytes) -> tuple[int, int] | None:
 
 
 def _valid_webp(body: bytes) -> bool:
-    chunks = list(_webp_chunks(body) or ())
+    chunks = _webp_chunks(body)
     return bool(
         chunks
         and any(kind in {b"VP8 ", b"VP8L"} for kind, _ in chunks)
@@ -98,9 +103,7 @@ def _valid_png(body: bytes) -> bool:
         offset = end
         if kind == b"IEND":
             break
-    try:
-        zlib.decompress(b"".join(image_data))
-    except zlib.error:
+    if not _valid_png_stream(image_data):
         return False
     return bool(
         offset == len(body)
@@ -112,6 +115,25 @@ def _valid_png(body: bytes) -> bool:
         and kinds[-1:] == [b"IEND"]
         and lengths[-1:] == [0]
     )
+
+
+def _valid_png_stream(chunks: list[bytes]) -> bool:
+    """Check the zlib stream without retaining decompressed pixel data."""
+    decoder = zlib.decompressobj()
+    total = 0
+    try:
+        for chunk in chunks:
+            for offset in range(0, len(chunk), READ_CHUNK_BYTES):
+                pending = chunk[offset : offset + READ_CHUNK_BYTES]
+                while pending:
+                    decoded = decoder.decompress(pending, READ_CHUNK_BYTES)
+                    total += len(decoded)
+                    if total > PNG_MAX_DECOMPRESSED_BYTES or decoder.unused_data:
+                        return False
+                    pending = decoder.unconsumed_tail
+        return decoder.eof
+    except zlib.error:
+        return False
 
 
 def image_size(body: bytes) -> tuple[int, int] | None:
@@ -181,7 +203,10 @@ def fetch_image(url: str) -> bytes:
             )
         chunks = []
         total = 0
-        for chunk in response:
+        while True:
+            chunk = response.read(min(READ_CHUNK_BYTES, DOWNLOAD_MAX_BYTES - total + 1))
+            if not chunk:
+                break
             total += len(chunk)
             if total > DOWNLOAD_MAX_BYTES:
                 raise ValueError(
@@ -200,6 +225,21 @@ def download(url: str, dst: pathlib.Path) -> pathlib.Path:
     """Fetch an image into ``dst`` after validating its URL, size, and bytes."""
     body = fetch_image(url)
 
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    dst.write_bytes(body)
+    write_atomic(dst, body)
     return dst
+
+
+def write_atomic(dst: pathlib.Path, body: bytes) -> None:
+    """Replace one artifact using a private temporary file beside its destination."""
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    staged = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=dst.parent, prefix=f".{dst.name}.", suffix=".part", delete=False
+        ) as stream:
+            staged = pathlib.Path(stream.name)
+            stream.write(body)
+        staged.replace(dst)
+    finally:
+        if staged is not None:
+            staged.unlink(missing_ok=True)

@@ -218,3 +218,43 @@ def test_socket_timeout_is_a_typed_provider_error():
     with patch("urllib.request.urlopen", side_effect=TimeoutError("read timed out")):
         with pytest.raises(ProviderError, match="read timed out"):
             post_json("https://provider.test/v1/images", {})
+
+
+@pytest.mark.parametrize("kind", ["http", "network", "minimax"])
+def test_bare_credentials_are_redacted_from_diagnostics(kind):
+    secret = "sk-do-not-print-this"
+    if kind == "http":
+        effect = http_error(401, {"error": {"message": f"Invalid key: {secret}"}})
+    elif kind == "network":
+        effect = urllib.error.URLError(f"Rejected {secret}")
+    else:
+        effect = None
+    response = Response({"base_resp": {"status_code": secret, "status_msg": secret}})
+    with patch("urllib.request.urlopen", side_effect=effect, return_value=response):
+        with pytest.raises(ProviderError) as raised:
+            post_json("https://provider.test/images", {}, headers={"Authorization": f"Bearer {secret}"})
+    assert secret not in str(raised.value)
+    assert "<redacted>" in str(raised.value)
+
+
+def test_http_error_response_is_closed_before_retry():
+    error = http_error(503, {})
+    with patch("urllib.request.urlopen", side_effect=[error, Response({})]), patch("time.sleep"):
+        post_json("https://provider.test/images", {})
+    assert error.closed
+
+
+@pytest.mark.parametrize("status", [301, 302, 303])
+def test_redirects_do_not_forward_authorization(status):
+    with patch("urllib.request.urlopen", return_value=Response({})) as urlopen:
+        post_json(
+            "https://provider.test/images", {},
+            headers={"Authorization": "Bearer secret", "Proxy-Authorization": "Basic proxy-secret"},
+        )
+    request = urlopen.call_args.args[0]
+    assert request.get_header("Authorization") == "Bearer secret"
+    redirected = urllib.request.HTTPRedirectHandler().redirect_request(
+        request, None, status, "redirect", {}, "https://other.test/image",
+    )
+    assert redirected.get_header("Authorization") is None
+    assert redirected.get_header("Proxy-authorization") is None

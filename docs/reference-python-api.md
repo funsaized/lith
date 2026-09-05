@@ -1263,6 +1263,8 @@ bytes. Provider adapters and both image-handling CLIs import these names.
 | `ALLOWED_SCHEMES` | `("http", "https")` |
 | `DOWNLOAD_TIMEOUT` | `30` (seconds) |
 | `DOWNLOAD_MAX_BYTES` | `26214400` (25 MiB) |
+| `READ_CHUNK_BYTES` | `65536` (64 KiB) |
+| `PNG_MAX_DECOMPRESSED_BYTES` | `268435456` (256 MiB) |
 | `JPEG_MAGIC` | `b"\xff\xd8\xff"` |
 | `PNG_MAGIC` | `b"\x89PNG\r\n\x1a\n"` |
 
@@ -1295,7 +1297,22 @@ looks_like_image(body: bytes) -> bool
 
 Validates the complete container structure: PNG chunk bounds and CRCs plus
 IHDR/IDAT/IEND, JPEG frame dimensions plus end marker, or RIFF sizing and a
-dimensioned VP8/VP8L payload. It does not perform OCR or semantic image review.
+dimensioned VP8/VP8L payload. PNG zlib output is discarded in bounded chunks
+and rejected above `PNG_MAX_DECOMPRESSED_BYTES`, or if the stream is truncated
+or has trailing data. Malformed trailing WebP chunks are rejected. These checks
+do not fully decode JPEG/WebP pixels or perform OCR or semantic image review.
+
+### `write_atomic`
+
+```python
+write_atomic(dst: pathlib.Path, body: bytes) -> None
+```
+
+Creates `dst.parent`, writes a private temporary file in that directory, closes
+it, and replaces `dst`. Cleans up on write or replacement failure. This helper
+does not validate bytes. Published files use the temporary file's owner-only permissions.
+Concurrent replacements are last-writer-wins; there is no batch transaction or
+power-loss durability guarantee.
 
 ### `fetch_image`
 
@@ -1329,9 +1346,11 @@ Fetches an image over HTTP(S) into `dst`, applying five guards in order:
 Sends `User-Agent: lith/1.0`. Creates `dst.parent` and writes only after all
 five guards pass. Returns `dst`.
 
-The response is accumulated in memory and written in a single `write_bytes`
-once every guard has passed, so a failed fetch writes nothing at all.
-`DOWNLOAD_MAX_BYTES` therefore bounds resident memory as well as disk.
+The response is read in bounded chunks and accumulated in memory. Reads stop
+after at most `DOWNLOAD_MAX_BYTES + 1` bytes. After validation, `write_atomic`
+replaces the destination; a failed fetch writes nothing. Validation uses
+additional bounded buffers, so the download ceiling is not a total process
+memory limit.
 
 **Raises** `ValueError` for any guard failure, plus `urllib.error.URLError` /
 `HTTPError` / `socket.timeout` from the network layer.
@@ -1377,8 +1396,8 @@ this as a `[warn]` line rather than letting the substitution pass unnoticed.
 load_local(src: pathlib.Path, dst: pathlib.Path) -> pathlib.Path
 ```
 
-Copies a local image into the pipeline's staging path. Reads `src` whole, applies
-the same `looks_like_image` check, creates `dst.parent`, and writes — unless
+Copies a local image to `dst`. Reads `src` whole, applies
+the same `looks_like_image` check, and atomically replaces `dst` — unless
 `src` and `dst` resolve to the same file, in which case the write is skipped.
 Returns `dst`.
 
@@ -1398,7 +1417,7 @@ the output stem via `output_path(..., "")`. Branches two ways:
 | Branch | Effect |
 |---|---|
 | No image source | Prints recipe, family, style, aspect, model, `n`, prompt, and `{stem}.<jpg\|png\|webp>`. Writes nothing. |
-| Image source | Stages the bytes at `{stem}.part`, warns if [`aspect_mismatch`](#aspect_mismatch) finds drift, then `Path.replace`s that onto `{stem}` plus the extension `image_ext` reads from the first 12 bytes. |
+| Image source | Validates bytes in memory, warns if [`aspect_mismatch`](#aspect_mismatch) finds drift, and atomically publishes with the extension read by `image_ext`. |
 
 `--strict` promotes that drift warning to exit code 1. The publish still
 happens first: the delivered bytes are what you need in order to see how the
@@ -1411,17 +1430,17 @@ known until the bytes arrive — Grok returns JPEG, `gpt-image-1` returns PNG �
 so the artifact is named after what actually landed. Nothing is re-encoded, and
 the published file is overwritten without prompting on a re-run.
 
-The staging file exists because the extension cannot be chosen until the bytes
-are in hand: they land at `{stem}.part`, are inspected, then renamed. It is not
-a crash-safety measure — `download` and `load_local` both write their whole
-body in one call after their guards pass, so a failed fetch leaves no file at
-all. A `.part` survives only if the rename itself fails.
+A private temporary file beside the destination isolates concurrent writers.
+Failed writes or replacements remove that temporary file and preserve the
+previous artifact. Last replacement wins. Candidate publication uses this same
+per-file guarantee; a multi-file batch is not transactional. Abrupt process
+termination may leave temporary files, and writes are not fsynced.
 
 `--image-url` and `--image-file` are a mutually exclusive argparse group.
 Progress lines print with `flush=True`.
 
 **Returns** `0`, or `1` when `--strict` is set and the frame drifted. Argparse
-errors exit 2. Guard failures from `download` or `load_local` propagate as
+errors exit 2. Image fetch and validation failures propagate as
 tracebacks.
 
 ---

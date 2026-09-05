@@ -57,7 +57,7 @@ def test_download_rejects_oversized_response(tmp_path):
 
     fake.__enter__ = lambda self: self
     fake.__exit__ = lambda self, *args: None
-    fake.__iter__ = lambda self: chunk_iter()
+    fake.read.side_effect = chunk_iter()
     with patch("urllib.request.urlopen", return_value=fake):
         with pytest.raises(ValueError, match="exceeds"):
             download("http://example.com/huge.jpg", tmp_path / "x.jpg")

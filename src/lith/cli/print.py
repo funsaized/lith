@@ -12,7 +12,7 @@ import pathlib
 import sys
 
 from lith import load_recipe, output_path, render_prompt
-from lith.imagebytes import download, image_ext, image_size, looks_like_image
+from lith.imagebytes import fetch_image, image_ext, image_size, looks_like_image, write_atomic
 from lith.paths import default_output_dir
 from lith.styles import get_family, load_styles
 
@@ -45,15 +45,19 @@ def aspect_mismatch(body: bytes, requested: str, tolerance: float = 0.02) -> str
 
 def load_local(src: pathlib.Path, dst: pathlib.Path) -> pathlib.Path:
     """Copy a recognized local image into the pipeline's raw-image path."""
+    body = _local_bytes(src)
+    if src.resolve() != dst.resolve():
+        write_atomic(dst, body)
+    return dst
+
+
+def _local_bytes(src: pathlib.Path) -> bytes:
     if not src.is_file():
         raise FileNotFoundError(f"input not found: {src}")
     body = src.read_bytes()
     if not looks_like_image(body):
         raise ValueError(f"local file is not a recognized image format: {src}")
-    dst.parent.mkdir(parents=True, exist_ok=True)
-    if src.resolve() != dst.resolve():
-        dst.write_bytes(body)
-    return dst
+    return body
 
 
 def main() -> int:
@@ -108,15 +112,13 @@ def main() -> int:
         )
         return 0
 
-    staged = stem.with_suffix(".part")
     if args.image_url:
         print(f"[download]    {args.image_url}", flush=True)
-        download(args.image_url, staged)
+        body = fetch_image(args.image_url)
     else:
         print(f"[copy]        {args.image_file}", flush=True)
-        load_local(args.image_file, staged)
+        body = _local_bytes(args.image_file)
 
-    body = staged.read_bytes()
     drift = aspect_mismatch(body, rendered["aspect_ratio"])
     if drift:
         print(f"[warn]        aspect: {drift}", flush=True)
@@ -125,7 +127,7 @@ def main() -> int:
     # share a headline silently collapses onto one file per family.
     if completed.exists():
         print(f"[warn]        overwriting {completed.name}", flush=True)
-    staged.replace(completed)
+    write_atomic(completed, body)
     print(f"[done]        {completed}", flush=True)
     # A warning on stdout is invisible to a sweep script scraping exit codes,
     # which is how 18 reframed images once published as a clean run.

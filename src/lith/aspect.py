@@ -18,7 +18,7 @@ than inside the model.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import gcd
+from math import gcd, isfinite
 from typing import Any
 
 
@@ -120,16 +120,17 @@ FALLBACK_ASPECT = "16:9"
 
 
 def ratio(aspect: str) -> float | None:
-    """Width divided by height, or None when ``aspect`` is not ``N:M``."""
+    """A finite positive width/height ratio, or None for invalid components."""
     if not isinstance(aspect, str) or ":" not in aspect:
         return None
     try:
         num, den = (float(part) for part in aspect.split(":", 1))
     except ValueError:
         return None
-    if not num or not den:
+    if not isfinite(num) or not isfinite(den) or num <= 0 or den <= 0:
         return None
-    return num / den
+    value = num / den
+    return value if isfinite(value) and value > 0 else None
 
 
 def supported_by(model: str | None) -> ModelCapability | None:

@@ -17,7 +17,7 @@ from lith.call import CallResult, ImageRequest, generate
 from lith.call.capability import provider_for_model
 from lith.call.creds import MissingCredential, PROVIDERS, resolve_credential
 from lith.call.http import REDACTED, ProviderError
-from lith.imagebytes import image_ext, looks_like_image
+from lith.imagebytes import image_ext, looks_like_image, write_atomic
 from lith.paths import default_output_dir
 
 
@@ -254,7 +254,7 @@ def _write_candidates(
         planned.append((path, candidate.data))
     output_dir.mkdir(parents=True, exist_ok=True)
     for path, data in planned:
-        path.write_bytes(data)
+        write_atomic(path, data)
     return [path for path, _ in planned]
 
 

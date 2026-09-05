@@ -88,15 +88,13 @@ def validate_brief(brief: Any) -> dict[str, Any]:
     if aspect is not None:
         if not isinstance(aspect, str) or (aspect != "auto" and ratio(aspect) is None):
             raise ValueError("brief.aspect must be 'auto' or a positive W:H ratio")
-        if aspect != "auto" and ratio(aspect) <= 0:
-            raise ValueError("brief.aspect must be 'auto' or a positive W:H ratio")
 
     layout = brief.get("layout")
-    if layout is not None and layout not in ARRANGEMENTS:
+    if layout is not None and (not isinstance(layout, str) or layout not in ARRANGEMENTS):
         valid = ", ".join(sorted(ARRANGEMENTS))
         raise ValueError(f"brief.layout must be one of: {valid}")
     position = brief.get("diagram_position")
-    if position is not None and position not in DIAGRAM_POSITIONS:
+    if position is not None and (not isinstance(position, str) or position not in DIAGRAM_POSITIONS):
         valid = ", ".join(sorted(DIAGRAM_POSITIONS))
         raise ValueError(f"brief.diagram_position must be one of: {valid}")
     return brief
@@ -112,9 +110,9 @@ def recipe_from_brief(
     description: str | None = None,
 ) -> Recipe:
     """Build a validated recipe from a generated or hand-authored brief."""
-    if style not in FAMILY_KEYS:
+    if not isinstance(style, str) or style not in FAMILY_KEYS:
         raise ValueError(f"style must be one of: {', '.join(FAMILY_KEYS)}")
-    if model not in MODEL_ASPECTS:
+    if not isinstance(model, str) or model not in MODEL_ASPECTS:
         raise ValueError(f"unknown model {model!r}")
     if not isinstance(n, int) or isinstance(n, bool) or not 1 <= n <= MODEL_ASPECTS[model].n_max:
         raise ValueError(f"n must be an integer from 1 through {MODEL_ASPECTS[model].n_max}")

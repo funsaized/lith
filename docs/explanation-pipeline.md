@@ -240,6 +240,12 @@ evidence. Hand the envelope to something else and you are back to trusting it,
 which is why `lith-print --strict` still checks the delivered frame independently
 of who produced it.
 
+**Provider authorization is scoped to the original request.** The transport uses
+unredirected authorization headers so urllib cannot copy credentials to a
+redirect target. Rendered errors redact both the authorization value and its
+bare token. Raw provider payloads remain available for debugging and should be
+treated as sensitive; they are not sanitized diagnostic strings.
+
 **Credentials in `~/.hermes/auth.json` are not trusted by name.** Tier 4 of the
 credential chain reads a file lith does not own, so a pool entry is used only
 when its `auth_type` is `oauth` — the `api_key` entries store a fingerprint, not
@@ -249,11 +255,18 @@ a token issued for `chatgpt.com/backend-api/codex`, and fail in a way that looks
 exactly like a bad key. Lith reads that file and never writes it.
 
 `--image-file` skips the network guards but keeps structural image validation,
-since a local path is your own. Either way the bytes land on a `.part` file first and
-are renamed only once the format is known — not for crash safety but because
-the extension is a property of the bytes, and lith refuses to guess it from the
-recipe. Both paths buffer the whole body and write it once, after their guards
-pass, so a rejected image never reaches the disk at all.
+since a local path is your own. Downloads use bounded 64 KiB reads, and PNG
+validation discards decompressed chunks as it checks the zlib stream, rejecting
+more than 256 MiB of decompressed data. These are structural checks, not full
+pixel decoders.
+
+Publication validates the bytes in memory, chooses the extension, and writes a
+unique temporary file beside the destination before atomically replacing it.
+Candidate files use the same writer. Failed writes or renames clean up their
+temporary file and preserve any existing destination. Concurrent replacements
+are last-writer-wins; a candidate batch is not a filesystem transaction. A
+process killed before cleanup can leave a temporary file, and no fsync guarantee
+is made for power loss.
 
 ## Deliberate omissions
 

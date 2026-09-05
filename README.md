@@ -360,11 +360,12 @@ you need to diagnose the substitution.
 `--image-url` fetches under four guards: HTTP(S) schemes only, re-checked after
 redirects; 30-second timeout; 25 MB ceiling enforced while streaming; and a
 structural validation for JPEG, PNG, or WebP before any write. `--image-file` skips
-the network guards, keeps structural validation, and no-ops the copy if source
-and destination resolve to the same path.
+the network guards and keeps structural validation. PNG decompression is
+streamed in 64 KiB chunks with a 256 MiB decompressed-data ceiling.
 
-Bytes are staged as `<stem>.part` and renamed once the format is known, because
-the extension cannot be chosen before the bytes are inspected. The published
+Validated bytes are written to a unique temporary file beside the destination
+and atomically replaced, so concurrent writers cannot share staging files and
+a failed write leaves an existing artifact intact. The last replacement wins. The published
 extension follows the image, not the recipe: Grok returns JPEG, `gpt-image-1`
 returns PNG. Nothing is re-encoded.
 

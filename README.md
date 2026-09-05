@@ -347,7 +347,7 @@ Validates a generated image and publishes it under the recipe's deterministic
 path. With no image source, it prints its plan and exits.
 
 ```
-lith-print --recipe PATH [--image-url URL | --image-file PATH] [options]
+lith-print --recipe PATH [--image-url URL | --image-file PATH | --svg] [options]
 ```
 
 | Flag | Type | Default | Description |
@@ -357,6 +357,7 @@ lith-print --recipe PATH [--image-url URL | --image-file PATH] [options]
 | `--image-file` | path | — | Local generated image. Mutually exclusive with `--image-url`. |
 | `--output-dir` | path | beside the recipe | Directory for the published file. Defaults to the recipe's sibling `outputs/`, not the cwd. |
 | `--strict` | flag | off | Exit 1 when the delivered frame does not match the request. The file is still published. |
+| `--svg` | flag | off | Offline deterministic family B SVG text poster. Stack layout, printable ASCII, supported frames only; overflow always fails before publication. See [deterministic copy](docs/explanation-deterministic-copy.md) and `recipes/deterministic.json`. |
 
 Two modes:
 
@@ -364,6 +365,7 @@ Two modes:
 |---|---|
 | No `--image-url` and no `--image-file` | Prints recipe, family, style, aspect, model, prompt, and output path; exits 0. Nothing is written. |
 | Image source | Writes the image to the recipe's output path, extension sniffed from the bytes; exits 0, or 1 under `--strict` if the frame drifted. |
+| `--svg` | Writes a deterministic `.svg` and exits 0. Unsupported content or overflow exits 2 before writing. `--strict` adds no behavior in this mode. |
 
 `lith-print` is the only step that compares the delivered frame against the one
 the prompt was composed for, so it is the only place a silently substituted
@@ -718,7 +720,7 @@ uv run pytest
 ```
 
 ```
-475 passed, 3 skipped
+493 passed, 3 skipped
 ```
 
 No credentials, no network. The three skips are live provider canaries, which

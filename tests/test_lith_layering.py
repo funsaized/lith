@@ -6,7 +6,7 @@ import ast
 from pathlib import Path
 
 
-PURE_MODULES = ("render", "aspect", "layout", "recipe", "styles", "paths")
+PURE_MODULES = ("render", "aspect", "layout", "recipe", "styles", "paths", "svg")
 FORBIDDEN_LAYER_PREFIXES = ("lith.cli", "lith.call")
 NETWORK_MODULE_PREFIXES = (
     "aiohttp",

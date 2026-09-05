@@ -33,6 +33,10 @@ below selects Hermes.
 
 ## Workflow
 
+If the user explicitly requests deterministic SVG text output, follow
+[Deterministic text output](#deterministic-text-output) directly. That offline
+path skips provider routing and generation. Otherwise use the workflow below.
+
 1. Inspect routing before generating. This is mandatory before every sweep,
    even when the intended provider seems obvious:
 
@@ -155,6 +159,17 @@ ordered steps, `radial` for a hub with satellites, `split` for a comparison,
 should read as editorial rather than tabular. Otherwise lith derives a grid from
 the section count and the frame. `diagram` is drawn, not lettered — only the
 labels it names appear as text.
+
+## Deterministic text output
+
+For explicitly requested deterministic text output, use
+`lith-print --recipe PATH --svg` instead of provider generation. This is a
+standalone family B SVG with stack layout and printable ASCII copy, supporting
+`1:1`, `2:3`, and `3:2`. It rejects diagrams, other layouts, compact mode,
+non-ASCII display copy and overflow; never drop authored fields to make it fit.
+Use `recipes/deterministic.json` as a text-only example. No provider call or
+credential lookup occurs. Exact SVG text is preserved; identical raster pixels
+across viewers are not promised. See `docs/explanation-deterministic-copy.md`.
 
 ## MiniMax compact mode
 

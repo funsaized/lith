@@ -49,6 +49,11 @@ def main() -> None:
         run(str(binaries / "lith-print"), "--recipe", str(path), "--image-file", str(root / "source.png"),
             "--output-dir", str(root / "published"), "--strict")
         assert (root / "published/B_brutalist_packaged.png").read_bytes() == data
+        run(str(binaries / "lith-print"), "--recipe", str(path), "--svg",
+            "--output-dir", str(root / "published"))
+        from xml.etree import ElementTree as ET
+        svg = ET.parse(root / "published/B_brutalist_packaged.svg")
+        assert ["".join(node.itertext()) for node in svg.findall("{http://www.w3.org/2000/svg}text")] == ["PACKAGED"]
         recipe["model"] = "image-01"
         recipe["brief"]["prompt_mode"] = "compact"
         path.write_text(json.dumps(recipe))

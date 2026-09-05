@@ -1557,3 +1557,12 @@ previous artifacts.
 - [README → Recipe format](../README.md#recipe-format) — the JSON schema
 - [About the pipeline](explanation-pipeline.md) — provider handoffs and deliberate omissions
 - [Tutorial: your first announcement image](tutorial-first-image.md) — the API in use
+
+## Deterministic SVG output
+
+`lith.svg.render_svg(recipe: Recipe) -> bytes` serializes an offline family B
+text poster. It preserves authored field values in SVG text elements and
+rejects unsupported content or overflow with `ValueError`. The CLI entry is
+`lith-print --recipe PATH --svg`. See the complete [contract and design
+tradeoffs](explanation-deterministic-copy.md). Existing `render_prompt` and
+byte-preserving raster publication APIs are unchanged.

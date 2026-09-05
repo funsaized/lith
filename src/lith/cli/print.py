@@ -2,7 +2,8 @@
 """Validate a generated image and publish it as the finished print.
 
 The operator or Hermes supplies a generated image via ``--image-url`` or
-``--image-file``. Without either source, the command prints its plan and exits.
+``--image-file``. ``--svg`` renders an offline text poster instead. Without
+an image source or ``--svg``, the command prints its plan and exits.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ from lith import load_recipe, output_path, render_prompt
 from lith.imagebytes import fetch_image, image_ext, image_size, looks_like_image, write_atomic
 from lith.paths import default_output_dir
 from lith.styles import get_family, load_styles
+from lith.svg import render_svg
 
 
 def aspect_mismatch(body: bytes, requested: str, tolerance: float = 0.02) -> str | None:
@@ -75,6 +77,9 @@ def main() -> int:
     image_source.add_argument(
         "--image-file", type=pathlib.Path, help="Local raw generated image path"
     )
+    image_source.add_argument(
+        "--svg", action="store_true", help="Render an offline deterministic family B text poster (stack layout, ASCII copy)."
+    )
     parser.add_argument(
         "--strict",
         action="store_true",
@@ -85,6 +90,17 @@ def main() -> int:
 
     recipe = load_recipe(args.recipe)
     output_dir = args.output_dir or default_output_dir(args.recipe)
+    if args.svg:
+        try:
+            body = render_svg(recipe)
+        except ValueError as exc:
+            parser.error(str(exc))
+        completed = output_path(output_dir, recipe.family_key, recipe.brief["headline"], ".svg")
+        if completed.exists():
+            print(f"[warn]        overwriting {completed.name}", flush=True)
+        write_atomic(completed, body)
+        print(f"[done]        {completed}", flush=True)
+        return 0
     styles = load_styles()
     style = get_family(styles, recipe.style)
     rendered = render_prompt(style, recipe.brief, model=recipe.model)

@@ -38,8 +38,9 @@ CAPABILITIES = {
         ],
     },
     "output-validation": {
-        "source": "lith.imagebytes,lith.cli.print",
+        "source": "lith.imagebytes,lith.cli.print,lith.svg",
         "tests": [
+            "tests/test_lith_svg.py",
             "tests/test_output_integration.py",
             "tests/test_lith_cli_print.py",
             "tests/test_lith_smoke_e2e.py",

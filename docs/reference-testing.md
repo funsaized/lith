@@ -84,6 +84,7 @@ harness below requires its own explicit `--live` flag and budget.
 
 | Module | Covers |
 |---|---|
+| `test_lith_svg.py` | Deterministic SVG copy, wrapping, XML escaping, bounds, unsupported content and offline publication. |
 | `test_lith_render.py` | `render_prompt`, `format_spec`, `copy_note`, slot substitution, palette resolution. |
 | `test_integration_recipes.py` | The 34-recipe testbed under `recipes/integration/`, driven through both prompt-side CLIs in-process. Layout, diagram-position, family, model, and aspect-rung coverage assertions. |
 | `test_lith_cli_plate.py` | `lith-plate` argument handling and envelope shape. |
@@ -122,7 +123,7 @@ scores `100.0`.
 |---|---|---|
 | `recipe-generation` | `lith.expand`, `lith.recipe`, `lith.render`, `lith.aspect`, `lith.layout`, `lith.styles`, `lith.paths`, `lith.cli.plate` | `test_recipe_generation_integration.py`, `test_integration_recipes.py`, `test_lith_expand.py`, `test_lith_render.py`, `test_lith_compact.py`, `test_lith_cli_plate.py` |
 | `provider-invocation` | `lith.call`, `lith.cli.press` | `test_lith_call.py`, `test_lith_cli_press.py`, `test_lith_creds.py`, `test_lith_http.py`, `test_lith_minimax.py`, `test_lith_openai.py`, `test_lith_xai.py` |
-| `output-validation` | `lith.imagebytes`, `lith.cli.print` | `test_output_integration.py`, `test_lith_cli_print.py`, `test_lith_smoke_e2e.py`, `test_integration_recipes.py` |
+| `output-validation` | `lith.imagebytes`, `lith.cli.print`, `lith.svg` | `test_lith_svg.py`, `test_output_integration.py`, `test_lith_cli_print.py`, `test_lith_smoke_e2e.py`, `test_integration_recipes.py` |
 
 **Output.** One line per capability, then exit `0` when all pass or `1` with a
 summary line on stderr naming each failure.
@@ -263,7 +264,7 @@ The wheel smoke creates a fresh temporary venv, installs only the wheel with
 `--no-index --no-deps`, removes Python path overrides, and runs outside the
 checkout. It checks the installed import location, all three CLI entry points,
 packaged standard/compact templates, offline provider preview, and byte-preserving
-strict publication of a complete generated PNG. Reproduce locally with:
+strict publication of a complete generated PNG, plus deterministic SVG output. Reproduce locally with:
 
 ```bash
 uv build --out-dir /tmp/lith-dist

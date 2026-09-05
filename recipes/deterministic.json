@@ -1,0 +1,21 @@
+{
+  "name": "deterministic-copy",
+  "description": "Offline family B SVG example; stacked text panels, no generated illustration.",
+  "style": "B",
+  "model": "grok-imagine-image-quality",
+  "n": 1,
+  "brief": {
+    "topic": "Exact authored poster copy",
+    "headline": "COPY YOU CAN CHECK",
+    "subtitle": "AUTHORED ONCE. PRESERVED IN THE ARTIFACT.",
+    "icon": "none",
+    "aspect": "3:2",
+    "layout": "stack",
+    "sections": [
+      {"heading": "01 - AUTHOR", "lines": ["Every title, heading and body line comes from the recipe.", "Keep punctuation: <copy> & \"quotes\" stay exactly as authored."]},
+      {"heading": "02 - VERIFY", "lines": ["Wrapped lines retain every character, including spaces.", "Overflow fails before publication. Nothing is silently removed."]},
+      {"heading": "03 - REVIEW", "lines": ["Text values are deterministic. Font appearance depends on the viewer.", "Diagrams and unsupported layouts need a separate design."]}
+    ],
+    "footer": "NO PROVIDER CALL. NO GENERATED LETTERING."
+  }
+}

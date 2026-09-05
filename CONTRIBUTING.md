@@ -34,7 +34,7 @@ uv run pytest
 ```
 
 ```
-475 passed, 3 skipped
+493 passed, 3 skipped
 ```
 
 No credentials and no network. The three skips are the live provider canaries;

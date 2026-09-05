@@ -15,7 +15,7 @@ These are enforced by tests, not by review taste.
 | Rule | Enforced by |
 |---|---|
 | Standard library only — no vendor SDKs, no HTTP clients, no external binaries | review; every dependency in `pyproject.toml` is test-only |
-| Python 3.10+ — no syntax newer than the floor in `requires-python` | the classifier matrix in `pyproject.toml` |
+| Python 3.10+ — no syntax newer than the floor in `requires-python` | CI runs Python 3.10 and 3.14 in `.github/workflows/validate.yml` |
 | Prompt-side modules never import `lith.cli`, `lith.call`, or a network module | `tests/test_lith_layering.py` (AST import-graph guard) |
 | Every capability stays at or above 80% branch-aware coverage | `tests/check_capability_coverage.py` |
 | The authored prompt reaches the provider verbatim | `tests/test_lith_<provider>.py` |
@@ -34,7 +34,7 @@ uv run pytest
 ```
 
 ```
-386 passed, 3 skipped
+475 passed, 3 skipped
 ```
 
 No credentials and no network. The three skips are the live provider canaries;

@@ -1,0 +1,36 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.10', '3.14']
+    env:
+      LITH_RUN_LIVE_PROVIDER_CANARIES: '0'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Clean install
+        run: python -m pip install -e '.[test]' build
+      - name: Offline tests
+        run: python -m pytest -q -m 'not live_provider'
+      - name: Capability coverage gates
+        run: python tests/check_capability_coverage.py
+      - name: Build sdist and wheel
+        run: python -m build
+      - name: Installed-wheel smoke outside checkout
+        run: python tests/check_wheel.py dist/*.whl

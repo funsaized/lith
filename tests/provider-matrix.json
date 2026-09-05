@@ -1,0 +1,6 @@
+[
+  {"name": "xai-portrait", "recipe": "../recipes/live_test_recipe.json", "options": {"model": "grok-imagine-image-quality", "aspect": "2:3", "n": 1, "resolution": "1k"}},
+  {"name": "xai-landscape", "recipe": "../recipes/live_test_recipe.json", "options": {"model": "grok-imagine-image-quality", "aspect": "3:2", "n": 1, "resolution": "1k"}},
+  {"name": "openai-portrait", "recipe": "../recipes/live_test_recipe.json", "options": {"model": "gpt-image-2", "aspect": "2:3", "n": 1, "quality": "medium"}},
+  {"name": "openai-landscape", "recipe": "../recipes/live_test_recipe.json", "options": {"model": "gpt-image-2", "aspect": "3:2", "n": 1, "quality": "medium"}}
+]

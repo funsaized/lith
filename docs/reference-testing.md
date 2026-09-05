@@ -17,6 +17,8 @@ is, see [About the pipeline](explanation-pipeline.md).
 - [Test modules](#test-modules)
 - [Capability coverage gate](#capability-coverage-gate)
 - [Live provider canaries](#live-provider-canaries)
+- [Budgeted provider matrix](#budgeted-provider-matrix)
+- [Clean-install CI](#clean-install-ci)
 - [Fixtures](#fixtures)
 - [Coverage configuration](#coverage-configuration)
 
@@ -34,10 +36,7 @@ is, see [About the pipeline](explanation-pipeline.md).
 
 The default run requires no credentials and makes no network request.
 
-```console
-$ uv run pytest -q
-386 passed, 3 skipped
-```
+Run `uv run pytest -q` for the current test count.
 
 The three skips are the live canaries. Their skip reason names the variable that
 enables them.
@@ -78,6 +77,8 @@ SKIPPED [1] tests/test_live_providers.py:55: set LITH_RUN_LIVE_PROVIDER_CANARIES
 Credential presence does not enable live tests. A populated `XAI_API_KEY`,
 `OPENAI_API_KEY`, or `MINIMAX_API_KEY` has no effect on selection;
 `LITH_RUN_LIVE_PROVIDER_CANARIES=1` is the only switch.
+This environment switch applies to pytest canaries only. The separate matrix
+harness below requires its own explicit `--live` flag and budget.
 
 ## Test modules
 
@@ -93,6 +94,7 @@ Credential presence does not enable live tests. A populated `XAI_API_KEY`,
 | `test_lith_http.py` | JSON transport, retry, redaction, and the mapping from HTTP and provider payloads to the error hierarchy. |
 | `test_lith_xai.py` | xAI request body, `storage_options`, `unsupported`, response parsing. |
 | `test_lith_openai.py` | OpenAI request body, `pixel_size` mapping, provider options, response parsing. |
+| `test_lith_compact.py` | Compact rendering, exact prompt-length boundaries, verbatim copy, unsupported fields/families, CLI pre-spend rejection, and unchanged standard prompts. |
 | `test_lith_minimax.py` | MiniMax request body, `PromptTooLong` precondition, `base_resp` error mapping, width/height fallback. |
 | `test_output_integration.py` | Complete PNG, JPEG, and WebP containers through the output path; truncated and corrupt input rejection. |
 | `test_recipe_generation_integration.py` | Brief expansion to rendered envelope, including a subprocess run through the CLI. |
@@ -100,6 +102,7 @@ Credential presence does not enable live tests. A populated `XAI_API_KEY`,
 | `test_lith_layering.py` | Import-graph guard. Parses `render`, `aspect`, `layout`, `recipe`, `styles`, and `paths` with `ast` and fails if any imports `lith.cli`, `lith.call`, or a network module. One test, no environment input. |
 | `test_lith_smoke_e2e.py` | One end-to-end recipe-to-published-file run. |
 | `test_live_providers.py` | The three live canaries. See [Live provider canaries](#live-provider-canaries). |
+| `test_provider_matrix.py` | Offline defaults, manifest validation, live budget, retries, failure retention, model provenance and separate visual-review status. All network responses are mocked. |
 
 ## Capability coverage gate
 
@@ -117,7 +120,7 @@ scores `100.0`.
 
 | Capability | Source packages | Test modules |
 |---|---|---|
-| `recipe-generation` | `lith.expand`, `lith.recipe`, `lith.render`, `lith.aspect`, `lith.layout`, `lith.styles`, `lith.paths`, `lith.cli.plate` | `test_recipe_generation_integration.py`, `test_integration_recipes.py`, `test_lith_expand.py`, `test_lith_render.py`, `test_lith_cli_plate.py` |
+| `recipe-generation` | `lith.expand`, `lith.recipe`, `lith.render`, `lith.aspect`, `lith.layout`, `lith.styles`, `lith.paths`, `lith.cli.plate` | `test_recipe_generation_integration.py`, `test_integration_recipes.py`, `test_lith_expand.py`, `test_lith_render.py`, `test_lith_compact.py`, `test_lith_cli_plate.py` |
 | `provider-invocation` | `lith.call`, `lith.cli.press` | `test_lith_call.py`, `test_lith_cli_press.py`, `test_lith_creds.py`, `test_lith_http.py`, `test_lith_minimax.py`, `test_lith_openai.py`, `test_lith_xai.py` |
 | `output-validation` | `lith.imagebytes`, `lith.cli.print` | `test_output_integration.py`, `test_lith_cli_print.py`, `test_lith_smoke_e2e.py`, `test_integration_recipes.py` |
 
@@ -143,7 +146,7 @@ exactly one generation request with `n=1`.
 |---|---|---|---|
 | `test_xai_live_canary_…` | `grok-imagine-image-2.0`, `resolution="1k"` | from `recipes/live_test_recipe.json` | `render_prompt` |
 | `test_openai_live_canary_…` | `gpt-image-1-mini`, `quality="low"` | from the same recipe | `render_prompt` |
-| `test_minimax_live_canary_uses_compact_prompt_under_provider_cap` | `image-01`, `seed=1047` | `1:1` | a literal in-test prompt |
+| `test_minimax_live_canary_uses_compact_prompt_under_provider_cap` | `image-01`, `seed=1047` | `1:1` | `recipes/minimax/sparse.json` compact render |
 
 The OpenAI canary pins `gpt-image-1-mini` at `quality="low"` — the cheapest
 combination that still exercises authentication, request shape, and response
@@ -151,10 +154,10 @@ parsing. It asserts `result.model_reported == request.model`. It does not assert
 copy fidelity; that model is
 [unsuitable for dense specs](../README.md#not-every-listed-model-can-render-a-dense-spec).
 
-The MiniMax canary does not use a rendered lith prompt. Every lith template
-exceeds MiniMax's 1500-character cap, so the test asserts
-`len(request.prompt) < 1500` on a hand-written prompt and exercises the adapter
-rather than the pipeline.
+The MiniMax canary renders `recipes/minimax/sparse.json` through the opt-in
+compact family B path, then exercises the adapter with `seed=1047`. It asserts
+the rendered prompt is below 1500 characters. The three-section example is
+covered offline; running its live test is a separate explicit spend.
 
 **Shared assertions.** Each canary checks that one candidate returned, that its
 bytes pass `looks_like_image`, that its dimensions are readable and within 2
@@ -180,6 +183,92 @@ uv run pytest -m live_provider -s
 The directory is created when needed. Filenames are deterministic:
 `{provider}_{model}_canary-c{index}.<jpg|png|webp>`. A later run of the same
 provider/model overwrites its previous canary artifact.
+
+## Budgeted provider matrix
+
+`tests/run_provider_matrix.py` reuses the production renderer, request builders,
+credential resolver, provider adapters, candidate writer and strict publisher.
+It adds no runtime dependency or public CLI. Default execution renders and
+validates every selected request offline: no credential lookup, network call,
+or artifact write occurs.
+
+```bash
+uv run python tests/run_provider_matrix.py tests/provider-matrix.json
+uv run python tests/run_provider_matrix.py tests/provider-matrix.json --case xai-portrait
+```
+
+The manifest is a nonempty JSON array of objects with a unique filename-safe
+`name`, a `recipe` path relative to the manifest, and optional `options`:
+`model`, `aspect`, `n`, `seed`, `resolution`, `quality`. Overrides are validated
+and applied before rendering. Repeat `--case` to select cases; omission selects
+the entire manifest. All selected cases must pass preflight before any spend.
+
+**Paid, explicit opt-in:** append `--live --max-candidates 8` to run the shipped
+four-candidate matrix. The budget reserves two attempts per request because
+the production transport may retry a 429/5xx once. One selected `n=1` case
+therefore needs a budget of 2. This is a candidate-attempt ceiling, not a dollar
+limit; provider pricing and billing of failed attempts are outside the harness.
+It never generates replacement candidates after a count/frame failure.
+
+Live artifacts go into a new `outputs/validation/<unique-id>` directory, or a
+new directory selected by `--out`. Existing directories are rejected to protect
+earlier evidence. Generated files and images belong under ignored `outputs/`;
+do not commit them. Each case retains the effective recipe, redacted request,
+candidate images, strict publication logs, and `result.json`. The aggregate
+`results.json` records requested versus returned count, requested model versus
+the raw response's actual `model` field (null when absent), the adapter's model
+fallback separately, dimensions, strict exit, POST attempts/retries, and usage
+or cost when provided. Raw response bodies/base64 payloads and credential
+headers are never retained. Failures record their exception type without
+potentially secret-bearing exception messages; independent cases still run.
+
+Exit 0 means all counts and strict publication checks passed. **It does not
+mean the images passed visual review.** Each image starts with
+`visual_review.status = "not_reviewed"`. Inspect the retained image against its
+recipe and record `pass` or `fail`, exact omissions/additions/substitutions,
+instruction leakage, and expected/observed diagram-label counts. Update the
+case and aggregate records together. Wrapping may change; authored words,
+punctuation and intentional repetitions must survive. Never infer visual
+approval from dimensions or an unsupported agent assertion.
+
+### Retained live evidence (2026-09-05)
+
+The earlier xAI quality/OpenAI GPT-image-2 matrix returned eight candidates with
+valid counts and frames; six passed visual copy review. Failures were a repeated
+BRINE diagram label in an xAI square batch and printed structural field labels
+in the OpenAI landscape image. After standard family B switched to ordered
+JSON copy blocks, four authorized `n=1` portrait/landscape candidates (two per
+provider) passed strict publication and direct line-by-line visual review, with
+four POSTs and no retries. All four diagram labels appeared exactly once in
+each. This small sample does not establish general fidelity or retest batches.
+Neither provider independently reported a model identifier in these payloads.
+Evidence remains local under `outputs/provider-matrix/` and
+`outputs/copy-fidelity/`; it is not a CI fixture.
+
+Both earlier MiniMax compact samples had valid frames but failed visual copy
+review; compact mode remains experimental. Provider mocks cover supported
+request options, but live evidence is limited to the models/options explicitly
+recorded above and the individual canaries. It is not exhaustive certification
+of every supported model, seed, aspect, quality or resolution.
+
+## Clean-install CI
+
+`.github/workflows/validate.yml` runs Python 3.10 and 3.14 on pushes and pull
+requests. Each job installs the test extra in a clean environment, excludes
+live tests, runs the three coverage gates, builds an sdist and wheel, and runs
+`tests/check_wheel.py dist/*.whl`. Live canaries are also disabled explicitly
+in the job environment; credentials are not required.
+
+The wheel smoke creates a fresh temporary venv, installs only the wheel with
+`--no-index --no-deps`, removes Python path overrides, and runs outside the
+checkout. It checks the installed import location, all three CLI entry points,
+packaged standard/compact templates, offline provider preview, and byte-preserving
+strict publication of a complete generated PNG. Reproduce locally with:
+
+```bash
+uv build --out-dir /tmp/lith-dist
+uv run python tests/check_wheel.py /tmp/lith-dist/lith-0.1.0-py3-none-any.whl
+```
 
 ## Fixtures
 

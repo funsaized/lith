@@ -38,8 +38,8 @@ def _validate_prompt(prompt: str) -> None:
     if length > PROMPT_MAX_CHARS:
         raise PromptTooLong(
             f"MiniMax prompt length is {length} characters; cap is "
-            f"{PROMPT_MAX_CHARS}. See backlog §3.1: lith testbed prompts "
-            "require compact templates before MiniMax can render them"
+            f"{PROMPT_MAX_CHARS}. Use an explicitly authored shorter brief or "
+            "the supported family B compact prompt_mode; no copy was changed"
         )
 
 

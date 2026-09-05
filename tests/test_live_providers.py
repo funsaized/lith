@@ -94,13 +94,13 @@ def test_openai_live_canary_auth_schema_bytes_dimensions_and_metadata():
 @pytest.mark.live_provider
 @live_only
 def test_minimax_live_canary_uses_compact_prompt_under_provider_cap():
+    recipe = load_recipe(LIVE_RECIPE.parent / "minimax" / "sparse.json")
+    rendered = render_prompt(recipe)
     request = ImageRequest(
-        prompt=(
-            "Square vintage produce-label poster. Render exactly: DILL PICKLES. "
-            "One glass jar, crisp cucumber spears, fresh dill, garlic, clean white background."
-        ),
-        model="image-01",
-        aspect="1:1",
+        prompt=rendered["prompt"],
+        negative_prompt=rendered["negative_prompt"],
+        model=recipe.model,
+        aspect=rendered["aspect_ratio"],
         n=1,
         seed=1047,
     )

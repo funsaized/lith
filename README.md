@@ -294,7 +294,7 @@ lith-press --recipe PATH [--out DIR] [--n N] [--resolution {1k,2k}]
 | `--quality` | `low` `medium` `high` | — | OpenAI quality. Other adapters report it in `unsupported`. |
 | `--seed` | int | — | MiniMax seed. Other adapters report it in `unsupported`. |
 | `--dry-run` | flag | off | Print the exact provider URL, redacted headers, request body, and unsupported fields; make no call. |
-| `--check` | flag | off | Print whether Hermes `image_generate` or `lith-press` preserves the recipe's model and aspect; make no call. |
+| `--check` | flag | off | Print whether Hermes `image_generate` or `lith-press` preserves the model, aspect, candidate count, and explicit seed/resolution/quality controls; make no call. |
 | `--auth` | flag | off | Report each provider's resolving credential tier and short fingerprint, never its value. `--recipe` is optional. |
 | `--emit-json` | flag | off | Emit JSON for `--auth`, `--check`, or a live result. `--dry-run` is always JSON. |
 
@@ -311,10 +311,26 @@ Credentials resolve in this order: shell environment, the recipe repository's
 a repo-local setup. A repo `.env` is ignored by Git. `lith-press --auth` shows
 which tier won.
 
-MiniMax is implemented but its 1500-character prompt cap is lower than every
-current integration recipe. The adapter raises before any network call and
-names the measured length and cap; compact templates are a separate design
-task.
+MiniMax's 1500-character cap is below the standard templates' size. Opt in
+with `brief.prompt_mode: "compact"`, `style: "B"`, and `model: "image-01"`.
+Compact mode supports a title, subtitle, footer, and up to three stacked sections
+with at most two lines each. It rejects diagrams, palette/volume overrides,
+other layouts, and any unsupported fields rather than dropping them. The final
+prompt must fit the cap; authored copy is never shortened automatically.
+
+Preview the shipped examples before spending:
+
+```bash
+lith-press --recipe recipes/minimax/sparse.json --dry-run
+lith-press --recipe recipes/minimax/three-sections.json --dry-run
+```
+
+Use `lith-press` for this mode so `prompt_optimizer=false` is enforced. Compact
+mode is an experimental family B variant, not support for all seven families.
+Both live compact examples passed frame checks but failed copy-fidelity review
+(duplicated/invented labels and garbled text). Keep MiniMax compact mode out of
+production literal-copy workflows. A warning is emitted before generation;
+frame validation cannot establish whether every word was lettered correctly.
 
 ```bash
 uv run lith-press --check --recipe recipes/integration/24-aspect-ultrawide.json
@@ -450,13 +466,14 @@ A recipe is a JSON object. See
 
 | Key | Required | Used for |
 |---|---|---|
+| `prompt_mode` | no | `standard` (default), or experimental `compact` for MiniMax family B; unsupported combinations fail. |
 | `topic` | yes | Validation and human context; not substituted into any template. |
-| `headline` | yes | The spec's `TITLE:` line **and** the output filename. |
+| `headline` | yes | The displayed title **and** the output filename (unless `title` overrides the display). |
 | `icon` | yes | `{icon}` slot. |
 | `aspect` | no | Pins the ratio. Omit to derive it from content shape, then the family default. |
 | `volume` | no | `{volume}` slot; family C only. Defaults to `"1"`. |
-| `title` | no | Overrides `headline` in the spec's `TITLE:` line only; the filename still uses `headline`. |
-| `subtitle` | no | Spec `SUBTITLE:` line, and a subtitle zone in `{layout}`. |
+| `title` | no | Overrides `headline` in the displayed title only; the filename still uses `headline`. |
+| `subtitle` | no | Subtitle copy, and a subtitle zone in `{layout}`. |
 | `sections` | no | List of `{heading, lines}` objects — the section panels. `heading` is required on each; `lines` is 2–4 strings. |
 | `diagram` | no | One sentence naming every label in a simple drawing; adds a drawing zone. Described, not lettered — only the labels it names appear as text. |
 | `diagram_position` | no | `below` (default) · `above` · `beside` · `center`. `radial` forces `center`. |
@@ -465,9 +482,10 @@ A recipe is a JSON object. See
 | `base_color` | no | Overrides the family palette's `background` in `{base_color}`. |
 | `accent` | no | Overrides the family palette's `accent` in `{accent}`. |
 
-All seven families carry `{spec}` and `{layout}`, so spec keys reach every one
-of them. A brief with no `sections` degrades to a title-only spec, which is
-what every pre-spec recipe produces.
+All seven families carry authored copy and `{layout}`. Standard family B uses
+ordered JSON string blocks (`{copy_blocks}`) to keep structural labels out of
+the displayed copy; the other families retain `{spec}`. A brief with no
+`sections` degrades to a title-only spec, as pre-spec recipes do.
 
 Recipes are validated before rendering: style and model must be known, `n`
 must fit the model limit, authored fields must be non-empty strings, sections
@@ -501,10 +519,10 @@ must be `auto` or a positive `W:H` ratio. `validate_brief` and
 Seven families, defined in [`src/lith/data/styles.json`](src/lith/data/styles.json).
 That file is authoritative for prompt text; this table is the index.
 
-**Every family carries `{spec}` and `{layout}`.** The copy path is identical
-across all seven — the brief supplies every word, the template supplies only
-how those words are drawn. "Extra slots" below lists what a family uses
-*beyond* those two.
+**Every family carries authored copy and `{layout}`.** Family B uses
+`{copy_blocks}`; the others use `{spec}`. The brief supplies every word and the
+template supplies drawing instructions. "Extra slots" below lists slots beyond
+copy and layout. Public `format_spec()` retains its labeled format.
 
 | Letter | Key | Name | Default aspect | Extra slots | Best for |
 |---|---|---|---|---|---|
@@ -525,7 +543,8 @@ Slot resolution, per `render_prompt`:
 | `{volume}` | `brief["volume"]` | `"1"` |
 | `{base_color}` | `brief["base_color"]`, else `palette["background"]` | `"#000000"` |
 | `{accent}` | `brief["accent"]`, else `palette["accent"]` | `"#00E5FF"` |
-| `{spec}` | the brief's copy fields, serialized | title-only block |
+| `{spec}` | the brief's copy fields, serialized with labels | title-only block |
+| `{copy_blocks}` | ordered arrays of authored strings, used by standard family B | title-only block |
 | `{layout}` | the zones the brief has copy for | title zone alone |
 
 A palette field holding a list is joined with `" | "` — for example
@@ -661,7 +680,7 @@ Family object:
 `always_oversize_headline`, `always_one_decorative_motif`,
 `prefer_asymmetric_composition`, `always_one_idea_per_image` — are an authoring
 checklist. No code reads them. They describe the sparse families (A, B, C, E,
-F, G); a spec-driven family carrying `{spec}` and `{layout}` deliberately
+F, G); a spec-driven family carrying `{spec}` or `{copy_blocks}` plus `{layout}` deliberately
 overrides `max_words_in_image` and `always_one_idea_per_image`, since a dense
 poster is many ideas and a hundred-odd words on purpose.
 
@@ -699,7 +718,7 @@ uv run pytest
 ```
 
 ```
-386 passed, 3 skipped
+475 passed, 3 skipped
 ```
 
 No credentials, no network. The three skips are live provider canaries, which
@@ -727,7 +746,7 @@ uv run pytest -m live_provider -s
 | Prompt rendering from `styles.json` | done |
 | Recipe loader and dry-run driver | done |
 | Validate-and-publish driver | done |
-| Spec-driven poster copy (`{spec}` / `{layout}`) | done, all seven families |
+| Spec-driven poster copy and layout | done, all seven families |
 | Layout vocabulary (15 arrangements) | done |
 | Aspect resolution and per-model clamping | done |
 | Published-image aspect check | done |

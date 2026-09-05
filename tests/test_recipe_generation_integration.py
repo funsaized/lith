@@ -36,7 +36,8 @@ def test_generated_brief_validates_renders_and_reaches_generate_envelope(
         name="dill-pickle-generated",
     )
     rendered = render_prompt(recipe)
-    assert "TITLE: DILL PICKLES" in rendered["prompt"]
+    assert '"DILL PICKLES"' in rendered["prompt"]
+    assert "TITLE: DILL PICKLES" not in rendered["prompt"]
     assert "Fresh dill brings a grassy spark" in rendered["prompt"]
 
     path = tmp_path / "generated.json"

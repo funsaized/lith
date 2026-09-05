@@ -55,6 +55,10 @@ def validate_brief(brief: Any) -> dict[str, Any]:
     if missing:
         raise ValueError(f"missing brief fields: {sorted(missing)}")
 
+    mode = brief.get("prompt_mode", "standard")
+    if not isinstance(mode, str) or mode not in {"standard", "compact"}:
+        raise ValueError("brief.prompt_mode must be 'standard' or 'compact'")
+
     for key in TEXT_BRIEF_KEYS & brief.keys():
         _nonempty_text(brief[key], f"brief.{key}")
     for key in ("base_color", "accent"):

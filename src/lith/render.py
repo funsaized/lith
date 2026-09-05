@@ -1,8 +1,9 @@
+import json
 from typing import Any
 
-from .aspect import ratio, resolve_aspect
+from .aspect import MODEL_ASPECTS, ratio, resolve_aspect
 from .layout import format_layout
-from .recipe import Recipe
+from .recipe import Recipe, validate_brief
 from .styles import get_family, load_styles
 
 
@@ -23,8 +24,9 @@ def _palette_value(field: Any, default: str) -> str:
 def format_spec(brief: dict[str, Any]) -> str:
     """Serialize a poster spec into a literal copy block for the prompt.
 
-    Every line this emits is text the model is told to render character for
-    character. A brief with no ``sections`` degrades to just the title, which
+    The labeled public format is retained for existing callers and templates.
+    Standard family B uses private JSON string blocks to separate copy from
+    structural labels. A brief with no ``sections`` degrades to just the title, which
     is what pre-spec recipes produce.
     """
     parts = []
@@ -44,6 +46,19 @@ def format_spec(brief: dict[str, Any]) -> str:
     return "\n".join(parts)
 
 
+def _copy_blocks(brief: dict[str, Any]) -> str:
+    """Encode ordered display strings without labels that could become copy."""
+    blocks = []
+    title = brief.get("title") or brief.get("headline")
+    if title:
+        blocks.append([title])
+    if brief.get("subtitle"):
+        blocks.append([brief["subtitle"]])
+    for section in brief.get("sections", []):
+        blocks.append([section["heading"], *section.get("lines", [])])
+    if brief.get("footer"):
+        blocks.append([brief["footer"]])
+    return json.dumps(blocks, ensure_ascii=False, indent=2)
 
 
 def copy_note(spec: str, prompt: str) -> str | None:
@@ -64,6 +79,56 @@ def copy_note(spec: str, prompt: str) -> str | None:
         "instructions; the model may letter template wording instead. Add "
         "sections, or expect a title-only poster"
     )
+
+
+def _compact_prompt(style: dict[str, Any], brief: dict[str, Any], model: str | None) -> str:
+    """Render the explicitly limited MiniMax variant without shortening copy."""
+    validate_brief(brief)
+    if model != "image-01":
+        raise ValueError("compact prompt_mode requires MiniMax model 'image-01'")
+    template = style.get("compact_prompt_template")
+    if not template:
+        raise ValueError("compact prompt_mode is supported only by family B")
+    allowed = {
+        "prompt_mode", "topic", "headline", "title", "subtitle", "icon",
+        "aspect", "layout", "sections", "footer",
+    }
+    unsupported = brief.keys() - allowed
+    if unsupported:
+        raise ValueError(
+            "compact prompt_mode does not support brief fields: "
+            + ", ".join(sorted(unsupported))
+        )
+    if brief.get("layout") not in (None, "stack"):
+        raise ValueError("compact prompt_mode supports only layout 'stack'")
+    sections = brief.get("sections", [])
+    if len(sections) > 3 or any(len(section.get("lines", [])) > 2 for section in sections):
+        raise ValueError(
+            "compact prompt_mode supports at most 3 sections with at most 2 lines each"
+        )
+    for section in sections:
+        if section.keys() - {"heading", "lines"}:
+            raise ValueError("compact sections support only heading and lines")
+    zones = ["Large title at top."]
+    if brief.get("subtitle"):
+        zones.append("Subtitle below title.")
+    if sections:
+        zones.append(
+            f"Stack {len(sections)} full-width panels vertically, "
+            "each heading above its body lines."
+        )
+    if brief.get("footer"):
+        zones.append("Footer at bottom.")
+    prompt = template.format(
+        icon=brief["icon"], layout=" ".join(zones), spec=format_spec(brief)
+    )
+    limit = MODEL_ASPECTS[model].prompt_max_chars
+    if limit is not None and len(prompt) > limit:
+        raise ValueError(
+            f"MiniMax compact prompt length is {len(prompt)} characters; cap is {limit}. "
+            "Shorten the authored brief explicitly; no copy was changed"
+        )
+    return prompt
 
 
 def render_prompt(
@@ -94,26 +159,37 @@ def render_prompt(
     width_over_height = ratio(aspect)
     landscape = bool(width_over_height and width_over_height > 1.2)
 
-    palette = style.get("palette", {})
-    prompt = style["prompt_template"].format(
-        headline=brief.get("headline", "NEW"),
-        icon=brief.get("icon", "gear"),
-        # Brief wins over palette: a family whose palette lists several
-        # backgrounds needs the recipe to pick one, or the prompt asks for a
-        # "single flat background" and names three colors.
-        base_color=_palette_value(
-            brief.get("base_color") or palette.get("background"), "#000000"
-        ),
-        accent=_palette_value(brief.get("accent") or palette.get("accent"), "#00E5FF"),
-        volume=brief.get("volume", "1"),
-        spec=spec,
-        layout=format_layout(brief, landscape=landscape),
-    )
+    if brief.get("prompt_mode") == "compact":
+        prompt = _compact_prompt(style, brief, model)
+        note = (
+            "MiniMax compact mode is experimental; generated text may be incorrect "
+            "or invented. Review every word before publication; --strict checks "
+            "the frame only"
+        )
+    else:
+        palette = style.get("palette", {})
+        blocks = _copy_blocks(brief)
+        prompt = style["prompt_template"].format(
+            headline=brief.get("headline", "NEW"),
+            icon=brief.get("icon", "gear"),
+            # Brief wins over palette: a family whose palette lists several
+            # backgrounds needs the recipe to pick one, or the prompt asks for a
+            # "single flat background" and names three colors.
+            base_color=_palette_value(
+                brief.get("base_color") or palette.get("background"), "#000000"
+            ),
+            accent=_palette_value(brief.get("accent") or palette.get("accent"), "#00E5FF"),
+            volume=brief.get("volume", "1"),
+            spec=spec,
+            copy_blocks=blocks,
+            layout=format_layout(brief, landscape=landscape),
+        )
+        note = copy_note(blocks if "{copy_blocks}" in style["prompt_template"] else spec, prompt)
     return {
         "prompt": prompt,
         "negative_prompt": str(style.get("negative_prompt", "")),
         "aspect_ratio": str(aspect),
         "style": str(style["name"]),
         "aspect_note": aspect_note,
-        "copy_note": copy_note(spec, prompt),
+        "copy_note": note,
     }

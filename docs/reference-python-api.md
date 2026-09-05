@@ -161,6 +161,7 @@ arguments, regardless of which the template uses:
 | `{base_color}` | `brief["base_color"]`, else `style["palette"]["background"]` | `"#000000"` |
 | `{accent}` | `brief["accent"]`, else `style["palette"]["accent"]` | `"#00E5FF"` |
 | `{spec}` | [`format_spec(brief)`](#format_spec) | `""` for an empty brief |
+| `{copy_blocks}` | ordered JSON arrays of authored strings (standard family B) | `[]` for an empty brief |
 | `{layout}` | [`format_layout(brief, landscape)`](#format_layout) | the title zone alone |
 
 Both palette slots take the brief's value first. `D_manga` is the family this
@@ -189,12 +190,38 @@ validation and constructs a `Recipe`. These are the intended bridge from
 | `TypeError` | `style` is a mapping and `brief` is `None` (`"brief is required when style is a mapping"`). |
 | `ValueError` | `format_spec` hits a section with no `heading`. |
 
-A custom family may use any subset of the seven slots; an eighth slot raises:
+A custom family may use any subset of the eight slots; an unknown slot raises:
 
 ```python
 >>> render_prompt({"name": "x", "prompt_template": "{nope}"}, {})
 KeyError: 'nope'
 ```
+
+### Compact MiniMax variant
+
+Set `brief["prompt_mode"] = "compact"` with `model="image-01"` and bundled
+family B. `standard` remains the default. The compact template is stored as
+`compact_prompt_template` on that family; opting in does not alter the standard
+rendering path.
+
+The supported brief fields are `topic`, `headline`, `title`, `subtitle`, `icon`,
+`aspect`, `layout`, `sections`, `footer`, and `prompt_mode`. Layout is `stack`
+(or omitted, which means stack in compact mode), with at most three sections
+and two body lines per section. Section objects accept only `heading` and
+`lines`. Diagrams, palette/volume overrides, other layouts, and unknown fields
+raise `ValueError`. Sparse briefs do not create empty section zones.
+
+`format_spec` is reused unchanged, including the existing title-over-headline
+precedence. The exact rendered length is checked against the model capability
+cap before credential lookup in `lith-press`; over-limit prompts raise
+`ValueError` naming length and limit, without truncation. Direct MiniMax
+`ImageRequest` calls still raise `PromptTooLong` in the adapter.
+
+Use direct `lith-press` generation so prompt optimization stays disabled.
+See `recipes/minimax/` for sparse and three-section examples. This is structural
+support and a prompt budget guarantee, not a guarantee of visual copy fidelity.
+Both initial live examples failed visual review. `copy_note` always warns that
+compact mode is experimental; do not treat it as production-ready typography.
 
 ### `format_spec`
 
@@ -203,8 +230,10 @@ format_spec(brief: dict[str, Any]) -> str
 ```
 
 Serializes the brief's copy fields into the literal block substituted at
-`{spec}`. Every line it emits is text the model is instructed to reproduce
-character for character.
+`{spec}`. This public labeled format is retained for compatibility; standard
+family B instead uses private ordered JSON string blocks to distinguish copy
+from structural labels. The other templates instruct the model to reproduce the labeled
+block character for character.
 
 Emitted in this fixed order, each part omitted when its field is absent. The
 block is purely literal text — `diagram` is a description, so it lives in
@@ -506,7 +535,7 @@ The ratio the brief's content shape calls for, or `None`.
 
 | Condition | Result |
 |---|---|
-| `style["prompt_template"]` has no `{spec}` | `None` — a custom family that opts out |
+| `style["prompt_template"]` has neither `{spec}` nor `{copy_blocks}` | `None` — a custom family that opts out |
 | 3 or more `sections` | `"2:3"` |
 | 1–2 `sections` | `"1:1"` |
 | no `sections` | `None` |
@@ -663,7 +692,7 @@ bytes in `Candidate.data`. The CLI does not expose this provider-specific option
 
 MiniMax enforces its 1500-character prompt cap before credential resolution or
 network access and raises `PromptTooLong`, an `InvalidRequest` subclass, naming
-the measured length, cap, and backlog §3.1. Every current integration prompt is
+the measured length, cap, and the explicit compact-mode alternative. Every standard integration prompt is
 over that cap.
 
 ### `provider_for_model`
@@ -1201,6 +1230,11 @@ routing_decision(
     recipe_model: str,
     resolved_aspect: str,
     *,
+    n: int = 1,
+    seed: int | None = None,
+    resolution: str | None = None,
+    quality: str | None = None,
+    prompt_mode: str = "standard",
     home=None,
     environ=None,
 ) -> dict[str, str | None]
@@ -1208,10 +1242,16 @@ routing_decision(
 
 Returns an inspectable Hermes-versus-`lith-press` decision. Hermes
 `image_generate` is selected only when its active model exactly equals the
-recipe model and the resolved aspect is `16:9`, `1:1`, or `9:16`; every other
+recipe model, the resolved aspect is `16:9`, `1:1`, or `9:16`, exactly one
+candidate is requested, seed/resolution/quality are omitted, and prompt mode
+is standard. Compact mode always uses `lith-press` to disable prompt optimization. Every other
 case routes to `lith-press` with the failed condition in `reason`. The Hermes
 model comes from `~/.hermes/config.yaml` `image_gen.model`, falling back to
 `FAL_IMAGE_MODEL`.
+
+The CLI passes the effective recipe count and all overrides to this check.
+For a native call, the skill translates the concrete ratio to Hermes's
+`landscape`, `square`, or `portrait` vocabulary.
 
 ### `request_preview`
 

@@ -45,13 +45,16 @@ below selects Hermes.
    check; the recipe, resolved aspect, and Hermes configuration can change.
 
 2. Follow the reported route exactly. Hermes `image_generate` is allowed only
-   when both conditions hold:
+   when all conditions hold:
 
    - Hermes' active model (`~/.hermes/config.yaml` → `image_gen.model`, falling
      back to `FAL_IMAGE_MODEL`) exactly equals the recipe's model.
    - The resolved aspect is exactly `16:9`, `1:1`, or `9:16`.
 
-   Any model mismatch or any other ratio routes to `lith-press`. A matching
+   - The recipe uses standard prompt mode. Compact MiniMax always uses `lith-press`.
+   - Exactly one candidate is requested, with no explicit seed, resolution, or quality override. Pass the same overrides to `--check` that you intend to use for generation.
+
+   Any model mismatch, other ratio, or unsupported control routes to `lith-press`. A matching
    model alone is insufficient because Hermes reduces aspect ratios to three
    buckets.
 
@@ -76,6 +79,10 @@ below selects Hermes.
    ```bash
    lith-plate --recipe /absolute/path/to/recipe.json --press --emit-json
    ```
+
+   Translate the concrete aspect to Hermes's tool vocabulary: `16:9` →
+   `landscape`, `1:1` → `square`, `9:16` → `portrait`. Do not pass numeric
+   ratios to a tool schema that accepts only these names.
 
    Keep `negative_prompt` in the envelope because FAL/Flux backends accept it.
    When the selected provider does not, do not send it: preserve `prompt`
@@ -149,6 +156,23 @@ should read as editorial rather than tabular. Otherwise lith derives a grid from
 the section count and the frame. `diagram` is drawn, not lettered — only the
 labels it names appear as text.
 
+## MiniMax compact mode
+
+For `image-01`, opt in explicitly with `brief.prompt_mode: "compact"` and
+family B. Use `recipes/minimax/sparse.json` or `three-sections.json` as examples.
+Support is limited to a title, optional subtitle/footer, and up to three stacked
+sections with at most two lines each. Omit `layout` or use `stack`. Diagrams,
+palette/volume overrides, other families/layouts, and unknown fields are rejected.
+Do not remove authored fields or rewrite copy merely to make a recipe pass.
+Ask the user to revise content if it exceeds the 1500-character rendered cap.
+
+Always use direct `lith-press` for compact MiniMax recipes to enforce
+`prompt_optimizer=false`. Preview first; no prompt is silently truncated. This
+mode failed copy-fidelity review on both live acceptance examples. Do not choose
+it for production literal-copy posters. Use it only for explicitly requested
+experiments; inspect every word and reject unintended labels or copy changes
+even when `lith-print --strict` passes.
+
 ## Conventions
 
 - Keep headlines to 1-3 all-caps, ASCII-friendly words.
@@ -210,3 +234,10 @@ labels it names appear as text.
 - Confirm every line of the brief's spec appears in the image, spelled
   correctly, and that no wording from the prompt's own instructions was
   lettered into the frame.
+
+- Treat strict publication and visual approval as separate results. Compare the
+  actual image against the saved recipe line by line, and explicitly report
+  omissions, substitutions, additions (including field labels or JSON syntax),
+  and rendered palette codes. Count every named diagram label: report expected
+  versus observed multiplicity, including duplicates. Preserve intentional
+  repetitions in the authored copy. Do not describe an image as verbatim-copy compliant when any such defect exists.

@@ -21,6 +21,7 @@ CAPABILITIES = {
             "tests/test_integration_recipes.py",
             "tests/test_lith_expand.py",
             "tests/test_lith_render.py",
+            "tests/test_lith_compact.py",
             "tests/test_lith_cli_plate.py",
         ],
     },

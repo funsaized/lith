@@ -59,7 +59,7 @@ candidates against.
 
 Two of them are now historical. `max_words_in_image: 3` and
 `always_one_idea_per_image` describe lith before it was spec-driven; all seven
-families now carry `{spec}` and `{layout}`, and a poster is scored against its
+families now carry authored copy and `{layout}`, and a poster is scored against its
 spec rather than a word count. The palette and composition rules still hold
 universally.
 
@@ -79,26 +79,27 @@ these; it's a manual composite of separate runs.
 
 ## Prompt anatomy
 
-Every family template covers the same six concerns, in this order:
+Standard templates separate visual instructions, layout and authored copy.
+Most families use these concerns:
 
 ```
 [FRAME]      ground, texture, and the overall visual register
 [LAYOUT]     the zone notes, substituted at {layout}
 [TYPO]       how the title, panels, drawing and footer are drawn in this family
 [ICON]       one or two named motifs/glyphs (lightning, skull, gear)
-[COPY]       the literal copy block, substituted at {spec}
-[MOOD]       one sentence: who is this for, what is the feeling
+[MOOD]       who is this for, what is the feeling
+[COPY]       the final copy block: {spec}, or {copy_blocks} for family B
 ```
 
-`[LAYOUT]` and `[COPY]` are shared verbatim across all seven — the same two
-substituted blocks, in the same order, with the same standing order to reproduce
-the copy character for character. Only `[FRAME]`, `[TYPO]`, `[ICON]` and
-`[MOOD]` are the family's own. That ratio is the point: a family decides how a
-poster looks, never what it says.
+`[LAYOUT]` uses the same zone formatter across all seven families. Standard
+family B encodes copy as ordered JSON arrays of strings, avoiding generated
+field labels that live models sometimes printed. The other families retain the
+public labeled `format_spec()` representation. Both preserve the brief's display
+values and order; a family decides how a poster looks, never what it says.
+Compact MiniMax B is an explicit experimental exception with a smaller template.
 
-They're prose in `prompt_template` rather than labeled sections, but the order
-holds across all seven, and a new family should follow it. The rules behind the
-order:
+Templates keep copy last so trailing instructions do not compete with it.
+The rules behind the separation:
 
 1. **Never let the model choose a font.** Say "display sans-serif, Helvetica
    Neue Black, 180px" or "Bodoni, 200px, all caps." An unspecified font is a

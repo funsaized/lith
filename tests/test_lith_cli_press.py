@@ -162,9 +162,9 @@ def test_dry_run_prompt_too_long_is_one_error_line_without_traceback(
     # advisory warning — this recipe asks 4:5, which MiniMax clamps to 3:4 —
     # and every one of those must be prefixed so the error stays unambiguous.
     assert lines[-1] == (
-        f"MiniMax prompt length is {expected} characters; cap is 1500. See "
-        "backlog §3.1: lith testbed prompts require compact templates before "
-        "MiniMax can render them"
+        f"MiniMax prompt length is {expected} characters; cap is 1500. Use "
+        "an explicitly authored shorter brief or the supported family B "
+        "compact prompt_mode; no copy was changed"
     )
     assert all(line.startswith("warning: ") for line in lines[:-1])
     assert any("cannot produce 4:5" in line for line in lines[:-1])
@@ -267,7 +267,7 @@ def test_check_prints_route_and_specific_reason_without_auth(
     assert _main(monkeypatch, "--recipe", path, "--check") == 0
     output = capsys.readouterr().out
     assert "route=lith-press" in output
-    assert "reason=Hermes image_generate cannot preserve resolved aspect '2:3'" in output
+    assert "Hermes image_generate cannot preserve resolved aspect '2:3'" in output
 
 
 def test_opt_in_grok_canary_recipe_is_capable_and_routable(tmp_path):
@@ -424,3 +424,29 @@ def test_render_notes_drops_empty_values():
 
     assert render_notes({"aspect_note": None, "copy_note": "", "limit_notes": []}) == {}
     assert render_notes({"aspect_note": "x"}) == {"aspect_note": "x"}
+
+
+@pytest.mark.parametrize("options, reason", [
+    ({"n": 4}, "n=4"),
+    ({"seed": 0}, "explicit seed"),
+    ({"resolution": "1k"}, "explicit resolution"),
+    ({"quality": "low"}, "explicit quality"),
+])
+def test_routing_preserves_controls_hermes_cannot_accept(tmp_path, options, reason):
+    decision = press_cli.routing_decision(
+        "grok-imagine-image-2.0", "1:1", home=tmp_path,
+        environ={"FAL_IMAGE_MODEL": "grok-imagine-image-2.0"}, **options,
+    )
+    assert decision["route"] == "lith-press"
+    assert reason in decision["reason"]
+
+
+def test_check_uses_recipe_count_and_cli_overrides(tmp_path, monkeypatch, capsys):
+    _, path = _recipe(tmp_path, aspect="1:1")
+    monkeypatch.setenv("FAL_IMAGE_MODEL", "grok-imagine-image-2.0")
+    assert _main(monkeypatch, "--recipe", path, "--check", "--emit-json") == 0
+    assert json.loads(capsys.readouterr().out)["route"] == "lith-press"
+    assert _main(monkeypatch, "--recipe", path, "--n", "1", "--check", "--emit-json") == 0
+    assert json.loads(capsys.readouterr().out)["route"] == "image_generate"
+    assert _main(monkeypatch, "--recipe", path, "--n", "1", "--resolution", "1k", "--check", "--emit-json") == 0
+    assert json.loads(capsys.readouterr().out)["route"] == "lith-press"

@@ -297,9 +297,9 @@ def test_every_family_carries_the_spec_and_layout_slots():
     styles = load_styles()
     for letter in "ABCDEFG":
         template = get_family(styles, letter)["prompt_template"]
-        assert "{spec}" in template, f"family {letter} has no {{spec}} slot"
+        assert "{spec}" in template or "{copy_blocks}" in template, f"family {letter} has no copy slot"
         assert "{layout}" in template, f"family {letter} has no {{layout}} slot"
-        assert "EXACTLY as written" in template, f"family {letter} lost the verbatim order"
+        assert "exactly as" in template.lower(), f"family {letter} lost the verbatim order"
 
 
 def test_every_family_renders_a_dense_spec_intact():
@@ -317,12 +317,12 @@ def test_every_family_renders_a_dense_spec_intact():
     }
     for letter in "ABCDEFG":
         out = render_prompt(get_family(styles, letter), brief)["prompt"]
-        for needle in ("TITLE: SHIP", "SUBTITLE HERE", "01 - ALPHA", "02 - BETA",
+        for needle in ("SHIP", "SUBTITLE HERE", "01 - ALPHA", "02 - BETA",
                        "first body line", "third body line",
-                       "wired to a box labeled BETA", "FOOTER: example.com"):
+                       "wired to a box labeled BETA", "example.com"):
             assert needle in out, f"family {letter} dropped {needle!r}"
         assert "2 section panels" in out, f"family {letter} lost its panel zone"
-        for slot in ("{spec}", "{layout}", "{headline}", "{icon}", "{volume}",
+        for slot in ("{spec}", "{copy_blocks}", "{layout}", "{headline}", "{icon}", "{volume}",
                      "{base_color}", "{accent}"):
             assert slot not in out, f"family {letter} left {slot} unfilled"
 
@@ -337,7 +337,7 @@ def test_every_family_still_handles_a_sparse_brief():
         )["prompt"]
         assert "SECTION PANELS" not in out, f"family {letter} orders empty panels"
         assert "dominating the composition" in out, f"family {letter} lost title scaling"
-        assert "TITLE: SHIP" in out
+        assert "SHIP" in out
 
 
 def test_no_family_prompt_can_leak_a_zone_label():
@@ -358,8 +358,9 @@ def test_no_family_prompt_can_leak_a_zone_label():
         for shouty in ("TITLE BLOCK", "SECTION PANELS", "DIAGRAM PANEL",
                        "DIAGRAM:", "FOOTER —"):
             assert shouty not in out, f"family {letter} can letter {shouty!r}"
-        assert "never letter any instruction from above" in out
-        assert "not content" in out
+        assert ("never letter any instruction from above" in out or
+                "Never print a field name, zone number, instruction" in out)
+        assert "not content" in out or "instructions, never text to print" in out
 
 
 def test_layout_vocabulary_is_selectable():
@@ -434,7 +435,7 @@ def test_no_family_template_presumes_an_arrangement():
     styles = load_styles()
     for letter in "ABCDEFG":
         body = get_family(styles, letter)["prompt_template"]
-        body = body.split("anywhere in the image.")[1].split("The block below")[0]
+        body = body.replace("{layout}", "")
         bad = re.search(r"\bis a (column|row|grid)\b|\bin (two|three) columns\b", body, re.I)
         assert not bad, f"family {letter} presumes an arrangement: {bad.group()!r}"
 
@@ -631,3 +632,55 @@ def test_default_model_is_current_generation(tmp_path):
         "style": "B", "brief": {"topic": "t", "headline": "h", "icon": "i"},
     }))
     assert load_recipe(p).model == "grok-imagine-image-2.0"
+
+
+def test_copy_blocks_round_trip_values_order_and_title_override():
+    import json
+    from lith.render import _copy_blocks, format_spec
+
+    brief = {
+        "headline": "NOT THE DISPLAY TITLE", "title": 'TITLE: "Hello" {world}',
+        "subtitle": "café\nsecond line", "footer": "Keep \\ paths intact",
+        "sections": [
+            {"heading": "01 - ALPHA", "lines": ["repeated", "comma, bracket ]"]},
+            {"heading": "02 - BETA", "lines": ["repeated"]},
+        ],
+    }
+    assert json.loads(_copy_blocks(brief)) == [
+        [brief["title"]], [brief["subtitle"]],
+        ["01 - ALPHA", "repeated", "comma, bracket ]"],
+        ["02 - BETA", "repeated"], [brief["footer"]],
+    ]
+    assert format_spec(brief).startswith('TITLE: TITLE: "Hello" {world}')
+
+
+def test_copy_blocks_sparse_has_no_invented_empty_zones():
+    import json
+    from lith.render import _copy_blocks
+
+    assert json.loads(_copy_blocks({"headline": "SHIP"})) == [["SHIP"]]
+    assert json.loads(_copy_blocks({})) == []
+
+
+def test_family_b_uses_literal_blocks_and_preserves_layout_and_diagram():
+    import json
+    from lith.render import _copy_blocks
+    from lith.layout import format_layout
+    from lith.styles import load_styles, get_family
+
+    style = get_family(load_styles(), "B")
+    brief = {
+        "headline": "SHIP", "subtitle": "ALL SYSTEMS GO", "icon": "rocket",
+        "sections": [{"heading": "H", "lines": ["one", "two"]}] * 3,
+        "layout": "timeline", "diagram_position": "above",
+        "diagram": "A rocket with exactly two labels: ENGINE and PAYLOAD",
+        "footer": "READY",
+    }
+    result = render_prompt(style, brief, model="grok-imagine-image-quality")
+    assert result["aspect_ratio"] == "2:3"  # content derivation still recognizes B
+    assert format_layout(brief, landscape=False) in result["prompt"]
+    assert result["prompt"].endswith(_copy_blocks(brief))
+    assert json.loads(_copy_blocks(brief))[2] == ["H", "one", "two"]
+    assert "TITLE: SHIP" not in result["prompt"]
+    assert "FOOTER: READY" not in result["prompt"]
+    assert "#FF3030" not in result["prompt"]

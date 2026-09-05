@@ -93,12 +93,24 @@ def routing_decision(
     recipe_model: str,
     resolved_aspect: str,
     *,
+    n: int = 1,
+    seed: int | None = None,
+    resolution: str | None = None,
+    quality: str | None = None,
+    prompt_mode: str = "standard",
     home: str | os.PathLike[str] | None = None,
     environ: Mapping[str, str] | None = None,
 ) -> dict[str, str | None]:
     """Return the inspectable Hermes-versus-lith-press routing decision."""
     hermes_model, source = hermes_active_model(home=home, environ=environ)
     failures: list[str] = []
+    if prompt_mode == "compact":
+        failures.append("MiniMax compact prompts require lith-press to disable prompt optimization")
+    if n != 1:
+        failures.append(f"Hermes image_generate cannot preserve requested n={n}; use lith-press")
+    for field, value in (("seed", seed), ("resolution", resolution), ("quality", quality)):
+        if value is not None:
+            failures.append(f"Hermes image_generate cannot accept explicit {field}; use lith-press")
     if hermes_model is None:
         failures.append(
             "Hermes has no active image model in "
@@ -312,7 +324,11 @@ def _run(parser: argparse.ArgumentParser, args: argparse.Namespace) -> int:
     _warn_notes(notes)
 
     if args.check:
-        decision = routing_decision(recipe.model, rendered["aspect_ratio"])
+        decision = routing_decision(
+            recipe.model, rendered["aspect_ratio"], n=request.n,
+            seed=request.seed, resolution=request.resolution, quality=request.quality,
+            prompt_mode=recipe.brief.get("prompt_mode", "standard"),
+        )
         if args.emit_json:
             print(json.dumps({**decision, **notes}, indent=2))
         else:

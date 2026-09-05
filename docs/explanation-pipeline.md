@@ -157,8 +157,9 @@ labels naming ports you don't use.
 So lith splits authorship from rendering. Every word that will appear in the
 frame is written down first — by you in the recipe, or by an LLM through
 `expand_brief`, whose prompt is explicit that "every word you write is printed
-verbatim into the image." `render.format_spec` then serializes that brief into
-a literal copy block:
+verbatim into the image." Standard family B serializes the display strings into
+ordered JSON blocks without field labels; the public `render.format_spec`
+serializer, retained by the other families, produces this labeled block:
 
 ```
 TITLE: TAILSCALE
@@ -219,7 +220,8 @@ truncated image fails instead of becoming a corrupt published artifact.
 
 **Spec copy is trusted but shape-checked.** The strings in `sections` and
 `footer` are yours, and `format_spec` passes them through unescaped — they are
-going into a prompt, not a shell. What it checks is shape: a section without a
+going into a prompt, not a shell. Standard family B uses JSON escaping to
+preserve the same values without inventing field labels. What it checks is shape: a section without a
 `heading` raises `ValueError` naming its index, and an unknown `layout` or
 `diagram_position` raises with the valid options listed, rather than silently
 falling back to a default the recipe did not ask for.

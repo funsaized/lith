@@ -1,0 +1,16 @@
+{
+  "name": "minimax-compact-sparse",
+  "description": "Opt-in compact family B, sparse copy; structural support does not imply lettering fidelity.",
+  "style": "B",
+  "model": "image-01",
+  "n": 1,
+  "brief": {
+    "prompt_mode": "compact",
+    "topic": "Fresh dill pickles served cold",
+    "headline": "DILL PICKLES",
+    "subtitle": "COLD AND CRISP",
+    "footer": "KEEP REFRIGERATED",
+    "icon": "pickle jar",
+    "aspect": "1:1"
+  }
+}

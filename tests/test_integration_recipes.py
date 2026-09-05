@@ -20,7 +20,7 @@ from lith.styles import get_family, load_styles
 
 BED = pathlib.Path(__file__).resolve().parents[1] / "recipes" / "integration"
 RECIPES = sorted(BED.glob("*.json"))
-SLOTS = ("{spec}", "{layout}", "{headline}", "{icon}", "{volume}",
+SLOTS = ("{spec}", "{copy_blocks}", "{layout}", "{headline}", "{icon}", "{volume}",
          "{base_color}", "{accent}")
 # Strings that must never reach the prompt as something a model could letter.
 LEAKS = ("TITLE BLOCK", "SECTION PANELS", "DIAGRAM PANEL", "DIAGRAM:", "FOOTER —")
@@ -49,7 +49,8 @@ def test_recipe_renders_cleanly(path):
     for leak in LEAKS:
         assert leak not in prompt, f"letterable zone label {leak!r}"
 
-    assert "never letter any instruction from above" in prompt
+    assert ("never letter any instruction from above" in prompt or
+            "Never print a field name, zone number, instruction" in prompt)
     assert ratio(rendered["aspect_ratio"]) is not None
 
     brief = json.loads(path.read_text())["brief"]
@@ -391,8 +392,9 @@ def test_no_template_puts_text_after_the_spec_block():
     """
     for key, family in load_styles()["families"].items():
         template = family["prompt_template"]
-        assert "{spec}" in template, f"{key} has no spec slot"
-        trailing = template.split("{spec}", 1)[1].strip()
+        slot = "{copy_blocks}" if "{copy_blocks}" in template else "{spec}"
+        assert slot in template, f"{key} has no copy slot"
+        trailing = template.split(slot, 1)[1].strip()
         assert not trailing, (
             f"{key} places {len(trailing)} characters after the copy block: "
             f"{trailing[:60]!r}"

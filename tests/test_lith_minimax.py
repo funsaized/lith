@@ -158,7 +158,7 @@ def test_unsupported_fields_are_reported_without_touching_prompt():
     }
 
 
-def test_real_testbed_recipe_hits_section_3_1_precondition_before_auth_or_network():
+def test_standard_testbed_recipe_exceeds_cap_before_auth_or_network():
     recipe_path = REPO / "recipes" / "integration" / "06-grid-3x2-F.json"
     recipe = load_recipe(recipe_path)
     assert recipe.model == "image-01"
@@ -181,7 +181,7 @@ def test_real_testbed_recipe_hits_section_3_1_precondition_before_auth_or_networ
     message = str(raised.value)
     assert str(measured) in message
     assert str(PROMPT_MAX_CHARS) in message
-    assert "backlog §3.1" in message
+    assert "compact prompt_mode" in message
     resolve.assert_not_called()
     post.assert_not_called()
 

@@ -23,10 +23,10 @@ def test_pure_mode_prints_rendered_prompt():
     )
     assert result.returncode == 0
     out = result.stdout + result.stderr
-    # The headline reaches the prompt through the spec's TITLE line, which is
-    # the single copy path every family now shares.
-    assert "TITLE: 32 LANGS" in out
-    assert "pure-black panel" in out
+    # Family B carries display strings without a letterable TITLE label.
+    assert '"32 LANGS"' in out
+    assert "TITLE: 32 LANGS" not in out
+    assert "pure black background" in out
 
 
 def test_call_mode_emits_json_envelope():

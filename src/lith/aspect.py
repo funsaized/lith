@@ -287,7 +287,8 @@ def content_aspect(brief: dict[str, Any], style: dict[str, Any]) -> str | None:
     section panels need vertical room; one or two read better square. Anything
     else defers to the family default.
     """
-    if "{spec}" not in str(style.get("prompt_template", "")):
+    template = str(style.get("prompt_template", ""))
+    if "{spec}" not in template and "{copy_blocks}" not in template:
         return None
     count = len(brief.get("sections") or [])
     if count >= 3:
